@@ -299,7 +299,7 @@ s3.helicone.yourdomain.com {
 }
 ```
 
-See the [Cloud Deployment guide](/getting-started/self-host/cloud) for detailed HTTPS configuration.
+For production deployments, configure HTTPS using a reverse proxy like Caddy or nginx.
 
 ## Troubleshooting
 
@@ -413,6 +413,6 @@ docker exec -i helicone-postgres-flyway-test psql -U postgres helicone_test < ba
 ## Next Steps
 
 - Configure your application to use the Helicone proxy
-- Explore the [Helicone SDK](/getting-started/integration-method/gateway) for easier integration
+- Explore the [AI Gateway](/gateway/quickstart) for easier integration
 - Set up monitoring and alerts for production deployments
 - For scalable production deployments, see [Kubernetes Setup](/self-hosting/kubernetes)
