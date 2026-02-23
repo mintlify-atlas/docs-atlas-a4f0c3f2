@@ -1,0 +1,176 @@
+{
+  "projectType": "saas",
+  "projectName": "Helicone",
+  "projectDescription": "Open-source LLM observability platform and AI gateway for monitoring, evaluating, and managing large language model applications.",
+  "theme": "mint",
+  "primaryColor": "#0CA5E9",
+  "lightColor": "#0CA5E9",
+  "darkColor": "#0CA5E9",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "AI Gateway",
+            "pages": [
+              "gateway/overview",
+              "gateway/quickstart",
+              "gateway/provider-routing",
+              "gateway/fallbacks",
+              "gateway/prompt-integration"
+            ]
+          },
+          {
+            "group": "Observability",
+            "pages": [
+              "observability/overview",
+              "observability/requests",
+              "observability/sessions",
+              "observability/traces",
+              "observability/custom-properties",
+              "observability/user-metrics"
+            ]
+          },
+          {
+            "group": "Prompt Management",
+            "pages": [
+              "prompts/overview",
+              "prompts/versioning",
+              "prompts/deployment",
+              "prompts/sdk-integration"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/datasets",
+              "features/evaluations",
+              "features/alerts",
+              "features/caching",
+              "features/rate-limiting",
+              "features/webhooks"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/openai",
+              "integrations/anthropic",
+              "integrations/langchain",
+              "integrations/vercel-ai-sdk"
+            ]
+          },
+          {
+            "group": "Self-Hosting",
+            "pages": [
+              "self-hosting/overview",
+              "self-hosting/docker",
+              "self-hosting/kubernetes"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Gateway",
+            "pages": [
+              "api/gateway/chat-completions",
+              "api/gateway/models"
+            ]
+          },
+          {
+            "group": "Requests",
+            "pages": [
+              "api/requests/query",
+              "api/requests/get",
+              "api/requests/feedback",
+              "api/requests/properties"
+            ]
+          },
+          {
+            "group": "Sessions",
+            "pages": [
+              "api/sessions/query",
+              "api/sessions/metrics"
+            ]
+          },
+          {
+            "group": "Prompts",
+            "pages": [
+              "api/prompts/create",
+              "api/prompts/get",
+              "api/prompts/update",
+              "api/prompts/query"
+            ]
+          },
+          {
+            "group": "Evaluations",
+            "pages": [
+              "api/evaluations/query",
+              "api/evaluations/create",
+              "api/evaluations/scores"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Tutorials",
+            "pages": [
+              "guides/monitoring-ai-agents",
+              "guides/cost-tracking",
+              "guides/evaluation-with-ragas",
+              "guides/debugging-llm-apps"
+            ]
+          },
+          {
+            "group": "Use Cases",
+            "pages": [
+              "guides/production-monitoring",
+              "guides/fine-tuning-prep",
+              "guides/data-export",
+              "guides/environment-tracking"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI Gateway with 100+ provider support",
+    "LLM request logging and observability",
+    "Session and trace tracking",
+    "Prompt version management",
+    "Cost and latency analytics",
+    "Dataset creation and evaluation",
+    "Automatic fallbacks and retries",
+    "Caching and rate limiting"
+  ],
+  "publicApiSurface": [
+    "POST /v1/chat/completions - AI Gateway endpoint",
+    "POST /v1/request/query - Query logged requests",
+    "POST /v1/session/query - Query sessions",
+    "POST /v1/prompt/2025/query - Query prompts",
+    "POST /v1/evals/query - Query evaluations",
+    "POST /v1/request/feedback - Add request feedback",
+    "POST /v1/request/score - Score a request",
+    "GET /v1/models - List available models",
+    "Worker proxy at oai.helicone.ai",
+    "TypeScript SDK @helicone/prompts",
+    "Python SDK helicone-python"
+  ]
+}
