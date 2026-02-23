@@ -1,0 +1,371 @@
+---
+title: "OpenAI Integration"
+description: "Integrate Helicone with OpenAI for complete observability"
+icon: "openai"
+---
+
+Integrate Helicone with OpenAI to track, monitor, and optimize your GPT-4, GPT-3.5, and other OpenAI model usage.
+
+## Quick Start
+
+Integrate Helicone with OpenAI by changing your base URL and adding your API key:
+
+<CodeGroup>
+```python Python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+
+# Use the client normally
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ],
+)
+
+print(response.choices[0].message.content)
+```
+
+```typescript TypeScript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+
+// Use the client normally
+const response = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    { role: "user", content: "What is the capital of France?" }
+  ],
+});
+
+console.log(response.choices[0].message.content);
+```
+
+```bash cURL
+curl https://oai.helicone.ai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Helicone-Auth: Bearer $HELICONE_API_KEY" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      {"role": "user", "content": "What is the capital of France?"}
+    ]
+  }'
+```
+</CodeGroup>
+
+## Installation
+
+<Tabs>
+  <Tab title="Python">
+    ```bash
+    pip install openai
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```bash
+    npm install openai
+    ```
+  </Tab>
+</Tabs>
+
+## Configuration
+
+### Basic Setup
+
+Only two changes are needed:
+
+1. **Change base URL** to `https://oai.helicone.ai/v1`
+2. **Add Helicone-Auth header** with your API key
+
+### Environment Variables
+
+Set up your environment:
+
+```bash .env
+OPENAI_API_KEY=sk-...
+HELICONE_API_KEY=sk-helicone-...
+```
+
+## Features
+
+### Streaming Support
+
+Helicone fully supports streaming responses:
+
+<CodeGroup>
+```python Python
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Write a story"}],
+    stream=True,
+    stream_options={"include_usage": True},
+)
+
+for chunk in response:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="")
+```
+
+```typescript TypeScript
+const stream = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [{ role: "user", content: "Write a story" }],
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content || "");
+}
+```
+</CodeGroup>
+
+<Tip>
+  Enable `include_usage: true` in `stream_options` to capture token usage for streaming requests.
+</Tip>
+
+### Function Calling
+
+Track function calls and tool usage:
+
+```python
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get the current weather",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state",
+                    },
+                },
+                "required": ["location"],
+            },
+        },
+    }
+]
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+    tools=tools,
+)
+
+# Helicone automatically logs function calls
+```
+
+### Vision Models
+
+Log image inputs with GPT-4 Vision:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://example.com/image.jpg",
+                    },
+                },
+            ],
+        }
+    ],
+)
+
+# Helicone tracks image assets automatically
+```
+
+### Caching
+
+Enable caching to reduce costs and latency:
+
+<CodeGroup>
+```python Python
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        "Helicone-Cache-Enabled": "true",
+    },
+)
+```
+
+```typescript TypeScript
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+    "Helicone-Cache-Enabled": "true",
+  },
+});
+```
+</CodeGroup>
+
+[Learn more about caching →](/features/caching)
+
+### Custom Properties
+
+Add metadata to your requests:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-Property-Session": "session-123",
+        "Helicone-Property-User": "user@example.com",
+        "Helicone-Property-Environment": "production",
+    },
+)
+```
+
+[Learn more about custom properties →](/features/custom-properties)
+
+## Advanced Usage
+
+### User Tracking
+
+Track requests by user:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-User-Id": "user-123",
+    },
+)
+```
+
+### Session Tracking
+
+Group related requests into sessions:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-Session-Id": "session-abc",
+        "Helicone-Session-Name": "Customer Support Chat",
+        "Helicone-Session-Path": "/chat/support",
+    },
+)
+```
+
+### Prompt Tracking
+
+Track prompt versions:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-Prompt-Id": "prompt-v2",
+    },
+)
+```
+
+## Azure OpenAI
+
+Helicone also supports Azure OpenAI deployments:
+
+```python
+from openai import AzureOpenAI
+
+client = AzureOpenAI(
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    api_version="2024-02-01",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        "Helicone-Target-URL": os.getenv("AZURE_OPENAI_ENDPOINT"),
+    },
+)
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Requests not appearing in dashboard" icon="magnifying-glass">
+    **Check these common issues:**
+    
+    1. Verify your `HELICONE_API_KEY` is correct
+    2. Ensure base URL is `https://oai.helicone.ai/v1` (with `/v1`)
+    3. Check that `Helicone-Auth` header includes `Bearer ` prefix
+    4. Wait 10-30 seconds for requests to appear
+    
+    **Still not working?** Check the response headers for `Helicone-Status`:
+    
+    ```python
+    response = client.chat.completions.create(...).with_response()
+    print(response.response.headers.get('Helicone-Status'))
+    ```
+  </Accordion>
+
+  <Accordion title="SSL/Certificate errors" icon="lock">
+    If you encounter SSL errors, ensure you're using the latest version of the OpenAI SDK:
+    
+    ```bash
+    pip install --upgrade openai
+    ```
+  </Accordion>
+
+  <Accordion title="Rate limiting issues" icon="gauge-high">
+    Helicone does not add rate limits. If you're hitting rate limits, they're from OpenAI. The error message will be passed through from OpenAI's API.
+  </Accordion>
+</AccordionGroup>
+
+## Examples from Source
+
+See real integration examples in the repository:
+
+- [Basic chat completion](https://github.com/Helicone/helicone/blob/main/examples/cache/index.ts)
+- [Async logging](https://github.com/Helicone/helicone/blob/main/examples/asyncExample/index.ts)
+- [Custom properties](https://github.com/Helicone/helicone/blob/main/examples/chat_session_example/index.ts)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Properties" icon="tag">
+    Add metadata to your requests
+  </Card>
+  <Card title="Caching" icon="database">
+    Enable intelligent caching
+  </Card>
+  <Card title="Sessions" icon="link">
+    Track multi-turn conversations
+  </Card>
+  <Card title="Dashboard" icon="chart-line">
+    Explore your analytics
+  </Card>
+</CardGroup>

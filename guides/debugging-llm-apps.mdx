@@ -1,0 +1,564 @@
+---
+title: "Debug LLM Applications with Helicone"
+sidebarTitle: "Debugging LLM Apps"
+description: "Step-by-step tutorial for debugging production LLM issues using Helicone's observability tools"
+---
+
+Learn how to quickly identify and fix issues in production LLM applications using Helicone's debugging features.
+
+## What You'll Learn
+
+- Set up comprehensive request logging
+- Use filters to isolate problematic requests
+- Debug errors and unexpected outputs
+- Track prompt performance over time
+- Identify and fix latency issues
+
+## Prerequisites
+
+- Helicone API key ([get one here](https://helicone.ai))
+- An LLM application in production
+- Basic understanding of your application's architecture
+
+## Common Debugging Scenarios
+
+This tutorial covers:
+1. Finding and fixing errors (4XX/5XX)
+2. Debugging unexpected model outputs
+3. Identifying latency bottlenecks
+4. Tracking down cost spikes
+5. Investigating user-reported issues
+
+## Step 1: Enable Comprehensive Logging
+
+Add headers to capture debugging context:
+
+<CodeGroup>
+```typescript Node.js
+import { OpenAI } from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+
+// Add debugging context to every request
+function makeRequest(userId: string, feature: string, input: string) {
+  return client.chat.completions.create(
+    {
+      model: "gpt-4o",
+      messages: [{ role: "user", content: input }],
+    },
+    {
+      headers: {
+        // Essential debugging headers
+        "Helicone-User-Id": userId,
+        "Helicone-Property-Feature": feature,
+        "Helicone-Property-Environment": process.env.NODE_ENV,
+        "Helicone-Property-Version": "v2.1.0",
+        
+        // Optional: Add custom request ID for correlation
+        "Helicone-Request-Id": `${feature}-${Date.now()}`,
+      },
+    }
+  );
+}
+```
+
+```python Python
+from openai import OpenAI
+import os
+import time
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    }
+)
+
+def make_request(user_id: str, feature: str, input_text: str):
+    return client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": input_text}],
+        extra_headers={
+            # Essential debugging headers
+            "Helicone-User-Id": user_id,
+            "Helicone-Property-Feature": feature,
+            "Helicone-Property-Environment": os.getenv("ENV", "production"),
+            "Helicone-Property-Version": "v2.1.0",
+            
+            # Optional: Add custom request ID for correlation
+            "Helicone-Request-Id": f"{feature}-{int(time.time())}",
+        }
+    )
+```
+</CodeGroup>
+
+<Note>
+**Key Debugging Headers:**
+- `Helicone-User-Id`: Identify which users experience issues
+- `Helicone-Property-Feature`: Isolate problems to specific features
+- `Helicone-Property-Environment`: Separate dev/staging/production issues
+- `Helicone-Property-Version`: Track which code version has problems
+</Note>
+
+## Scenario 1: Finding and Fixing Errors
+
+### Problem: Users reporting 500 errors
+
+<Steps>
+<Step title="Navigate to Requests Dashboard">
+Go to [Helicone Requests](https://helicone.ai/requests)
+</Step>
+
+<Step title="Filter for Errors">
+Apply filters:
+```
+Status Code: 500 (or 4XX/5XX)
+Time Range: Last 24 hours
+Environment: production
+```
+</Step>
+
+<Step title="Identify Patterns">
+Look at the error list:
+- Are errors concentrated on a specific feature?
+- Affecting specific users?
+- Started at a specific time?
+
+Example findings:
+```
+23 errors in "document-analysis" feature
+All started after 2:30 PM
+Error message: "Rate limit exceeded"
+```
+</Step>
+
+<Step title="Inspect Request Details">
+Click on an error to see:
+- Full request payload
+- Error response
+- Model used
+- Request headers
+- Timestamp
+
+```json
+{
+  "error": {
+    "message": "Rate limit exceeded for gpt-4",
+    "type": "rate_limit_error",
+    "code": "rate_limit_exceeded"
+  }
+}
+```
+</Step>
+
+<Step title="Fix the Issue">
+Based on findings:
+
+<CodeGroup>
+```typescript Rate Limiting Fix
+// Add retry logic with exponential backoff
+import { setTimeout } from 'timers/promises';
+
+async function makeRequestWithRetry(
+  userId: string,
+  feature: string,
+  input: string,
+  maxRetries = 3
+) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await makeRequest(userId, feature, input);
+    } catch (error: any) {
+      if (error.status === 429 && attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        console.log(`Rate limited, retrying in ${delay}ms...`);
+        await setTimeout(delay);
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+```
+
+```typescript Switch Models
+// Use different model for high-traffic features
+const model = feature === "document-analysis"
+  ? "gpt-4o-mini"  // Higher rate limits, lower cost
+  : "gpt-4o";
+```
+</CodeGroup>
+</Step>
+
+<Step title="Monitor the Fix">
+Set up an alert to catch future issues:
+
+1. Go to **Settings → Alerts**
+2. Create alert:
+   - Metric: Error Rate
+   - Threshold: > 5%
+   - Time window: 10 minutes
+   - Filter: Feature = "document-analysis"
+3. Add Slack/email notification
+</Step>
+</Steps>
+
+## Scenario 2: Debugging Unexpected Outputs
+
+### Problem: Model generating incorrect format
+
+<Steps>
+<Step title="Find Problematic Requests">
+Filter requests:
+```
+Feature: data-extraction
+Time Range: Last 7 days
+Sort by: Recent first
+```
+</Step>
+
+<Step title="Review Request/Response">
+Click on a request to see:
+
+```typescript
+// Request
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Extract data as JSON"
+    },
+    {
+      "role": "user",
+      "content": "Name: John Doe, Age: 30"
+    }
+  ]
+}
+
+// Response (incorrect)
+"The person's name is John Doe and they are 30 years old."
+
+// Expected
+{"name": "John Doe", "age": 30}
+```
+</Step>
+
+<Step title="Identify the Issue">
+The prompt is too vague. The model needs clearer instructions.
+</Step>
+
+<Step title="Test Fix in Dashboard">
+Use Helicone's prompt testing feature or test locally:
+
+```typescript
+// Improved prompt
+const response = await client.chat.completions.create(
+  {
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "system",
+        content: `Extract data and respond ONLY with valid JSON.
+        
+Format: {"name": "string", "age": number}
+        
+Do not include any explanation or additional text.`
+      },
+      {
+        role: "user",
+        content: "Name: John Doe, Age: 30"
+      }
+    ],
+    temperature: 0,  // More deterministic
+  },
+  {
+    headers: {
+      "Helicone-Property-Version": "v2.2.0",  // Track new version
+    }
+  }
+);
+```
+</Step>
+
+<Step title="Compare Versions">
+After deploying, compare old vs. new:
+
+```
+Filter 1: Version = v2.1.0
+Filter 2: Version = v2.2.0
+
+Compare success rates, costs, latencies
+```
+</Step>
+</Steps>
+
+## Scenario 3: Identifying Latency Issues
+
+### Problem: Slow response times
+
+<Steps>
+<Step title="Filter Slow Requests">
+```
+Latency: > 5000ms (5 seconds)
+Time Range: Last 24 hours
+Sort by: Latency (descending)
+```
+</Step>
+
+<Step title="Analyze Patterns">
+Look for:
+- Specific models (GPT-4 vs. GPT-4o-mini)
+- Request size (token count)
+- Features with long prompts
+
+Example findings:
+```
+Feature: report-generation
+Average latency: 12.3s
+Token count: 8,500 tokens (very large)
+Model: gpt-4o
+```
+</Step>
+
+<Step title="Optimize">
+<CodeGroup>
+```typescript Reduce Prompt Size
+// Before: Including entire document
+const largePrompt = `Analyze this document:\n${fullDocument}`;
+
+// After: Summarize or chunk first
+const optimizedPrompt = `Analyze this summary:\n${summarizeDocument(fullDocument)}`;
+```
+
+```typescript Stream Responses
+// Enable streaming for perceived performance
+const stream = await client.chat.completions.create(
+  {
+    model: "gpt-4o",
+    messages: [{role: "user", content: prompt}],
+    stream: true,
+  },
+  {
+    headers: {
+      "Helicone-Property-Streaming": "true",
+    }
+  }
+);
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content || "");
+}
+```
+
+```typescript Use Faster Model
+// Use GPT-4o-mini for simpler tasks
+const model = taskComplexity === "simple"
+  ? "gpt-4o-mini"  // 2-3x faster
+  : "gpt-4o";
+```
+</CodeGroup>
+</Step>
+
+<Step title="Set Latency Alert">
+Create alert:
+- Metric: Latency
+- Threshold: P95 > 5000ms
+- Time window: 1 hour
+- Feature: report-generation
+</Step>
+</Steps>
+
+## Scenario 4: Investigating Cost Spikes
+
+### Problem: Unexpected $500 charge
+
+<Steps>
+<Step title="View Cost Dashboard">
+Go to [Helicone Dashboard](https://helicone.ai) and check:
+- Daily cost trend (when did spike occur?)
+- Cost by feature
+- Cost by user
+</Step>
+
+<Step title="Filter High-Cost Requests">
+```
+Date: [Date of spike]
+Sort by: Cost (descending)
+```
+
+Findings:
+```
+Top request: $12.50 (!)  
+User: user-789
+Feature: document-analysis
+Tokens: 125,000 (prompt) + 8,000 (completion)
+```
+</Step>
+
+<Step title="Investigate the Request">
+Click on expensive request:
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "[Entire 500-page PDF content]..."  // Problem!
+    }
+  ]
+}
+```
+
+User uploaded massive document without chunking.
+</Step>
+
+<Step title="Implement Safeguards">
+```typescript
+function validateInput(text: string): void {
+  const estimatedTokens = text.length / 4; // Rough estimate
+  const MAX_TOKENS = 50000;
+  
+  if (estimatedTokens > MAX_TOKENS) {
+    throw new Error(
+      `Input too large (${estimatedTokens} tokens). Maximum: ${MAX_TOKENS}`
+    );
+  }
+}
+
+// Add cost-per-request limit
+function checkCostLimit(user: User): void {
+  if (user.tier === "free" && user.monthlySpend > 10) {
+    throw new Error("Monthly limit reached. Upgrade to continue.");
+  }
+}
+```
+</Step>
+</Steps>
+
+## Scenario 5: User-Reported Issue
+
+### Problem: "User user-456 says chatbot gave wrong answer yesterday"
+
+<Steps>
+<Step title="Find User's Requests">
+```
+Filter by:
+- User ID: user-456
+- Date: [Yesterday]
+- Feature: chatbot
+```
+</Step>
+
+<Step title="Review Conversation">
+If using sessions:
+```
+Go to: Sessions
+Filter: User ID = user-456
+Find relevant session by timestamp
+```
+
+View entire conversation flow to understand context.
+</Step>
+
+<Step title="Identify Issue">
+Review the specific request/response:
+- Was context missing?
+- Did model hallucinate?
+- Was there a misunderstanding?
+
+Share findings with user:
+```
+Found the issue: The chatbot didn't have access to the
+latest product pricing, which was updated yesterday morning.
+We're adding a knowledge base refresh to fix this.
+```
+</Step>
+</Steps>
+
+## Advanced: Custom Request IDs
+
+Correlate Helicone logs with your application logs:
+
+```typescript
+const appRequestId = generateId(); // Your app's ID
+
+// Log in your application
+logger.info("Starting LLM request", { requestId: appRequestId });
+
+// Use same ID in Helicone
+await client.chat.completions.create(
+  { /* ... */ },
+  {
+    headers: {
+      "Helicone-Request-Id": appRequestId,
+    }
+  }
+);
+
+// Later, search Helicone by your ID
+// URL: https://helicone.ai/requests?requestId=your-app-id-123
+```
+
+## Best Practices
+
+<Tip>
+**Add context headers**: Include user ID, feature, environment, and version in every request
+</Tip>
+
+<Tip>
+**Use sessions for multi-step flows**: Group related requests to see full context
+</Tip>
+
+<Tip>
+**Set up alerts early**: Don't wait for users to report issues
+</Tip>
+
+<Tip>
+**Compare before/after**: Use version tags to measure impact of changes
+</Tip>
+
+<Warning>
+Remove sensitive information from prompts before logging. Use Helicone's [redaction features](/features/security) if needed.
+</Warning>
+
+## Debugging Checklist
+
+When investigating an issue:
+
+- [ ] Filter by relevant properties (user, feature, environment)
+- [ ] Check error rates and status codes
+- [ ] Review request/response payloads
+- [ ] Look for patterns (time-based, user-based, feature-based)
+- [ ] Check related requests (sessions)
+- [ ] Compare with working requests
+- [ ] Test fix with version tracking
+- [ ] Set up alert to catch recurrence
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Alerts" icon="bell" href="/features/alerts">
+  Set up proactive monitoring for errors and anomalies
+</Card>
+
+<Card title="Sessions" icon="layer-group" href="/features/sessions">
+  Track multi-step workflows for better context
+</Card>
+
+<Card title="Custom Properties" icon="tag" href="/features/advanced-usage/custom-properties">
+  Add metadata for powerful filtering and debugging
+</Card>
+
+<Card title="Webhooks" icon="webhook" href="/features/webhooks">
+  Get notified immediately when issues occur
+</Card>
+</CardGroup>

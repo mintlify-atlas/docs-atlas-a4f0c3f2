@@ -1,0 +1,472 @@
+---
+title: "User Metrics"
+description: "Track costs, usage, and performance per user to understand user behavior and optimize spend"
+---
+
+## What are User Metrics?
+
+User metrics let you track LLM usage at the user level. Monitor which users are driving costs, identify power users, analyze usage patterns, and implement usage-based billing.
+
+## Why Track Users?
+
+<CardGroup cols={2}>
+  <Card title="Cost Attribution" icon="dollar-sign">
+    Know exactly how much each user costs your application
+  </Card>
+  <Card title="Usage-Based Billing" icon="credit-card">
+    Charge users based on their actual LLM usage
+  </Card>
+  <Card title="Rate Limiting" icon="gauge">
+    Set per-user rate limits and quotas
+  </Card>
+  <Card title="User Analytics" icon="chart-line">
+    Understand user engagement and behavior patterns
+  </Card>
+  <Card title="Support & Debugging" icon="life-ring">
+    Debug issues for specific users
+  </Card>
+  <Card title="Churn Prevention" icon="user-shield">
+    Identify users with issues or low engagement
+  </Card>
+</CardGroup>
+
+## Adding User IDs
+
+Track users with the `Helicone-User-Id` header:
+
+<ParamField header="Helicone-User-Id" type="string" required>
+  Unique identifier for the user making the request. Can be any string that uniquely identifies your users (UUID, database ID, email hash, etc.).
+</ParamField>
+
+## Basic Example
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": "Bearer YOUR_HELICONE_KEY"
+    }
+)
+
+# Add user ID to request
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_headers={
+        "Helicone-User-Id": "user_123456"  # Your user's ID
+    }
+)
+```
+
+```typescript TypeScript
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://oai.helicone.ai/v1',
+  defaultHeaders: {
+    'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`
+  }
+});
+
+// Add user ID to request
+const response = await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Hello!' }]
+  },
+  {
+    headers: {
+      'Helicone-User-Id': 'user_123456'  // Your user's ID
+    }
+  }
+);
+```
+
+```bash cURL
+curl https://oai.helicone.ai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_OPENAI_KEY" \
+  -H "Helicone-Auth: Bearer YOUR_HELICONE_KEY" \
+  -H "Helicone-User-Id: user_123456" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+</CodeGroup>
+
+## What Metrics are Tracked?
+
+For each user, Helicone tracks:
+
+### Usage Metrics
+
+- **Total Requests**: Number of LLM requests made
+- **Total Tokens**: Prompt tokens + completion tokens
+- **Request Frequency**: Requests per day/week/month
+- **Active Days**: Days with at least one request
+
+### Cost Metrics
+
+- **Total Cost**: Cumulative spend in USD
+- **Average Cost per Request**: Mean cost across requests
+- **Cost Trend**: Spending over time
+- **Most Expensive Requests**: Highest cost requests
+
+### Performance Metrics
+
+- **Average Latency**: Mean response time
+- **Success Rate**: Percentage of successful requests
+- **Error Rate**: Percentage of failed requests
+- **Models Used**: Which models the user accesses
+
+### Engagement Metrics
+
+- **Session Count**: Number of sessions
+- **Requests per Session**: Average session length
+- **Last Active**: Most recent request timestamp
+- **First Seen**: First request timestamp
+
+## Viewing User Metrics
+
+Access user analytics in the dashboard:
+
+<Steps>
+  <Step title="Navigate to Users">
+    Go to the Users page in your Helicone dashboard
+  </Step>
+  <Step title="View User List">
+    See all users with their key metrics: total cost, request count, last active
+  </Step>
+  <Step title="Click a User">
+    View detailed metrics, request history, and trends for a specific user
+  </Step>
+  <Step title="Filter Requests">
+    Click "View Requests" to see all requests from that user
+  </Step>
+</Steps>
+
+## Filtering by User
+
+Find requests from specific users:
+
+### Dashboard Filtering
+
+1. Go to Requests page
+2. Add filter: **User ID equals** `user_123456`
+3. See all requests from that user
+
+### API Filtering
+
+```typescript
+const response = await fetch('https://api.helicone.ai/v1/request/query', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    filter: {
+      request_response_rmt: {
+        user_id: {
+          equals: "user_123456"
+        }
+      }
+    },
+    limit: 100,
+    sort: {
+      created_at: "desc"
+    }
+  })
+});
+```
+
+## User Context with Properties
+
+Combine user IDs with custom properties for richer analytics:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_headers={
+        # User identification
+        "Helicone-User-Id": user_id,
+        
+        # User context
+        "Helicone-Property-User-Tier": "premium",
+        "Helicone-Property-Organization": org_id,
+        "Helicone-Property-User-Segment": "power-user",
+        "Helicone-Property-Plan": "annual"
+    }
+)
+```
+
+This enables analysis like:
+- Cost per subscription tier
+- Usage patterns by user segment
+- Performance differences across plans
+
+## Use Cases
+
+### Usage-Based Billing
+
+Charge users based on their actual consumption:
+
+```python
+def calculate_user_bill(user_id: str, start_date: datetime, end_date: datetime):
+    # Query user's requests for billing period
+    requests = query_helicone_api(
+        filter={"user_id": {"equals": user_id}},
+        timeFilter={
+            "start": start_date.timestamp() * 1000,
+            "end": end_date.timestamp() * 1000
+        }
+    )
+    
+    # Calculate total cost
+    total_cost = sum(r["cost"] for r in requests)
+    total_tokens = sum(r["total_tokens"] for r in requests)
+    
+    # Add markup and generate invoice
+    markup = 1.5  # 50% markup
+    bill_amount = total_cost * markup
+    
+    return {
+        "user_id": user_id,
+        "period": f"{start_date} to {end_date}",
+        "total_tokens": total_tokens,
+        "base_cost": total_cost,
+        "bill_amount": bill_amount,
+        "request_count": len(requests)
+    }
+```
+
+### Per-User Rate Limiting
+
+Implement custom rate limits per user:
+
+```typescript
+import { RateLimiter } from 'your-rate-limiter';
+
+const userRateLimits = {
+  'free': 100,      // 100 requests/day
+  'pro': 1000,      // 1000 requests/day
+  'enterprise': -1  // unlimited
+};
+
+async function makeUserRequest(userId: string, userTier: string, prompt: string) {
+  // Check rate limit
+  const limit = userRateLimits[userTier];
+  if (limit > 0) {
+    const usage = await getUserDailyUsage(userId);
+    if (usage >= limit) {
+      throw new Error('Rate limit exceeded');
+    }
+  }
+  
+  // Make request with user ID
+  const response = await client.chat.completions.create(
+    {
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }]
+    },
+    {
+      headers: {
+        'Helicone-User-Id': userId,
+        'Helicone-Property-User-Tier': userTier
+      }
+    }
+  );
+  
+  return response;
+}
+```
+
+### Power User Identification
+
+Find your most active users:
+
+```python
+# Query top users by cost
+top_users = query_helicone_api(
+    endpoint="/users/query",
+    body={
+        "sort": {"total_cost": "desc"},
+        "limit": 10
+    }
+)
+
+for user in top_users:
+    print(f"User {user['user_id']}:")
+    print(f"  Total Cost: ${user['total_cost']:.2f}")
+    print(f"  Requests: {user['request_count']}")
+    print(f"  Avg Cost: ${user['avg_cost']:.4f}")
+    
+    # Consider upgrading to higher tier
+    if user['total_cost'] > 100 and user['tier'] == 'free':
+        suggest_upgrade(user['user_id'])
+```
+
+### User Support
+
+Debug issues for specific users:
+
+```typescript
+// Find failed requests for a user
+const response = await fetch('https://api.helicone.ai/v1/request/query', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    filter: {
+      left: {
+        request_response_rmt: {
+          user_id: { equals: "user_123456" }
+        }
+      },
+      operator: "and",
+      right: {
+        request_response_rmt: {
+          status: { not_equals: 200 }
+        }
+      }
+    },
+    limit: 50
+  })
+});
+
+// Analyze error patterns
+const errors = await response.json();
+console.log(`User has ${errors.length} failed requests`);
+```
+
+### Churn Prevention
+
+Identify users at risk:
+
+```python
+from datetime import datetime, timedelta
+
+def find_at_risk_users():
+    all_users = get_all_users()
+    at_risk = []
+    
+    for user in all_users:
+        last_active = user['last_request_timestamp']
+        days_inactive = (datetime.now() - last_active).days
+        
+        # Flag users inactive for 7+ days
+        if days_inactive >= 7:
+            at_risk.append({
+                'user_id': user['user_id'],
+                'days_inactive': days_inactive,
+                'total_cost': user['total_cost'],
+                'tier': user['tier']
+            })
+    
+    return at_risk
+
+# Send re-engagement campaigns
+at_risk_users = find_at_risk_users()
+for user in at_risk_users:
+    send_reengagement_email(user['user_id'])
+```
+
+## User ID Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Consistent IDs">
+    Use the same identifier across your application:
+    - Database primary key
+    - UUID from your auth system
+    - Hashed email (for privacy)
+    
+    Don't use different IDs for the same user.
+  </Accordion>
+  
+  <Accordion title="Hash Sensitive Data">
+    If using email or username, hash it first:
+    ```python
+    import hashlib
+    user_id = hashlib.sha256(user_email.encode()).hexdigest()
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle Anonymous Users">
+    For logged-out users, use session IDs or device IDs:
+    ```python
+    user_id = logged_in_user_id or f"anonymous_{session_id}"
+    ```
+  </Accordion>
+  
+  <Accordion title="Don't Store PII">
+    Never use raw email addresses, phone numbers, or other PII as user IDs. Use opaque identifiers.
+  </Accordion>
+</AccordionGroup>
+
+## Combining with Sessions
+
+Track both user identity and conversation context:
+
+```python
+import uuid
+
+session_id = str(uuid.uuid4())
+
+# Track user across multiple messages in a session
+for message in conversation:
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=conversation,
+        extra_headers={
+            "Helicone-User-Id": user_id,
+            "Helicone-Session-Id": session_id,
+            "Helicone-Session-Name": "Customer Support Chat"
+        }
+    )
+```
+
+This enables analysis like:
+- How many sessions per user?
+- What's the average session length per user?
+- Which users have the longest conversations?
+
+## User Privacy Considerations
+
+<Warning>
+**Protect User Privacy**
+
+When tracking users:
+- Use opaque identifiers (UUIDs, hashed IDs)
+- Don't include PII in properties
+- Comply with GDPR/CCPA requirements
+- Provide users ability to export/delete their data
+- Document your data retention policies
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Properties" icon="tags" href="/observability/custom-properties">
+    Add user context with properties
+  </Card>
+  <Card title="Session Tracking" icon="layer-group" href="/observability/sessions">
+    Track per-user sessions
+  </Card>
+  <Card title="Request Logging" icon="list" href="/observability/requests">
+    View individual user requests
+  </Card>
+  <Card title="Rate Limiting" icon="gauge" href="/features/rate-limiting">
+    Set per-user rate limits
+  </Card>
+</CardGroup>

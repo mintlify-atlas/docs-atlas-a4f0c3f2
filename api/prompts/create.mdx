@@ -1,0 +1,98 @@
+---
+title: 'Create Prompt'
+description: 'Create a new prompt with initial version'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" default="POST">
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  `/v1/prompt/create`
+</ParamField>
+
+## Authentication
+
+This endpoint requires API key authentication. Include your API key in the request headers:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body
+
+<ParamField body="userDefinedId" type="string" required>
+  User-defined identifier for the prompt. This is used to reference the prompt in your code
+</ParamField>
+
+<ParamField body="prompt" type="object" required>
+  The prompt template content. Should follow OpenAI chat completion format with messages array and model
+</ParamField>
+
+<ParamField body="metadata" type="object" required>
+  Additional metadata for the prompt as key-value pairs
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  Created prompt information
+  <ResponseField name="id" type="string">
+    Unique identifier for the prompt
+  </ResponseField>
+  <ResponseField name="prompt_version_id" type="string">
+    Unique identifier for the initial prompt version
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the request failed, null otherwise
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.helicone.ai/v1/prompt/create \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userDefinedId": "customer-support-v1",
+    "prompt": {
+      "model": "gpt-4",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a helpful customer support assistant."
+        },
+        {
+          "role": "user",
+          "content": "{{user_question}}"
+        }
+      ]
+    },
+    "metadata": {
+      "department": "support",
+      "version": "1.0"
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "data": {
+    "id": "prompt_abc123",
+    "prompt_version_id": "pv_xyz789"
+  },
+  "error": null
+}
+```
+
+## Notes
+
+- The `userDefinedId` must be unique within your organization
+- Use `{{variable_name}}` syntax for template variables in your prompt
+- The initial version is automatically set as version 1.0

@@ -1,0 +1,368 @@
+---
+title: 'Query Requests'
+description: 'Query and filter requests with advanced filtering and pagination'
+---
+
+## Overview
+
+Query requests from your Helicone organization with powerful filtering, sorting, and pagination capabilities. This endpoint allows you to retrieve requests based on various criteria including properties, feedback, timestamps, and more.
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  /v1/request/query
+</ParamField>
+
+## Authentication
+
+Requires API key authentication via the `Authorization` header:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body
+
+<ParamField body="filter" type="object" required>
+  Filter criteria for requests. Supports nested filtering with AND/OR operators.
+  
+  The filter can be:
+  - `"all"` - returns all requests
+  - A filter object with specific criteria
+  - A filter branch with `left`, `operator` ("and" | "or"), and `right` properties
+  
+  **Supported filter fields:**
+  - `request` - Filter by request properties (id, created_at, user_id, path, etc.)
+  - `response` - Filter by response properties (status, model, etc.)
+  - `properties` - Filter by custom properties
+  - `feedback` - Filter by feedback ratings
+  - `values` - Filter by request/response values
+</ParamField>
+
+<ParamField body="offset" type="number" default="0">
+  Number of records to skip for pagination
+</ParamField>
+
+<ParamField body="limit" type="number" default="10">
+  Maximum number of records to return (max: 100)
+</ParamField>
+
+<ParamField body="sort" type="object">
+  Sort order for results. Example: `{ "created_at": "desc" }`
+  
+  **Supported sort fields:**
+  - `created_at` - Sort by request creation time
+  - `latency` - Sort by request latency
+  - `cost` - Sort by request cost
+  - `tokens` - Sort by token usage
+</ParamField>
+
+<ParamField body="isCached" type="boolean" default="false">
+  Filter for cached requests only
+</ParamField>
+
+<ParamField body="includeInputs" type="boolean" default="false">
+  Include prompt inputs in the response
+</ParamField>
+
+<ParamField body="isPartOfExperiment" type="boolean" default="false">
+  Filter for requests that are part of experiments
+</ParamField>
+
+<ParamField body="isScored" type="boolean" default="false">
+  Filter for requests that have evaluation scores
+</ParamField>
+
+## Response
+
+Returns an array of request objects matching the filter criteria.
+
+<ResponseField name="data" type="array">
+  Array of request objects
+  
+  <Expandable title="Request Object">
+    <ResponseField name="request_id" type="string">
+      Unique identifier for the request
+    </ResponseField>
+    
+    <ResponseField name="request_created_at" type="string">
+      Timestamp when the request was created (ISO 8601)
+    </ResponseField>
+    
+    <ResponseField name="request_body" type="object">
+      The request payload sent to the LLM provider
+    </ResponseField>
+    
+    <ResponseField name="request_path" type="string">
+      API endpoint path (e.g., "/v1/chat/completions")
+    </ResponseField>
+    
+    <ResponseField name="request_user_id" type="string" nullable>
+      User identifier associated with the request
+    </ResponseField>
+    
+    <ResponseField name="request_properties" type="object" nullable>
+      Custom properties attached to the request
+    </ResponseField>
+    
+    <ResponseField name="request_model" type="string" nullable>
+      Model requested in the API call
+    </ResponseField>
+    
+    <ResponseField name="response_id" type="string" nullable>
+      Unique identifier for the response
+    </ResponseField>
+    
+    <ResponseField name="response_created_at" type="string" nullable>
+      Timestamp when the response was received
+    </ResponseField>
+    
+    <ResponseField name="response_body" type="object">
+      The response payload from the LLM provider
+    </ResponseField>
+    
+    <ResponseField name="response_status" type="number">
+      HTTP status code of the response
+    </ResponseField>
+    
+    <ResponseField name="response_model" type="string" nullable>
+      Actual model used by the provider
+    </ResponseField>
+    
+    <ResponseField name="provider" type="string">
+      LLM provider name (e.g., "OPENAI", "ANTHROPIC", "AZURE")
+    </ResponseField>
+    
+    <ResponseField name="model" type="string">
+      Model identifier
+    </ResponseField>
+    
+    <ResponseField name="delay_ms" type="number" nullable>
+      Request latency in milliseconds
+    </ResponseField>
+    
+    <ResponseField name="time_to_first_token" type="number" nullable>
+      Time to first token in milliseconds (for streaming)
+    </ResponseField>
+    
+    <ResponseField name="total_tokens" type="number" nullable>
+      Total tokens used (prompt + completion)
+    </ResponseField>
+    
+    <ResponseField name="prompt_tokens" type="number" nullable>
+      Number of tokens in the prompt
+    </ResponseField>
+    
+    <ResponseField name="completion_tokens" type="number" nullable>
+      Number of tokens in the completion
+    </ResponseField>
+    
+    <ResponseField name="cost" type="number" nullable>
+      Cost of the request in USD
+    </ResponseField>
+    
+    <ResponseField name="prompt_id" type="string" nullable>
+      ID of the prompt template used
+    </ResponseField>
+    
+    <ResponseField name="prompt_version" type="string" nullable>
+      Version of the prompt template used
+    </ResponseField>
+    
+    <ResponseField name="feedback_rating" type="boolean" nullable>
+      User feedback rating (true for positive, false for negative)
+    </ResponseField>
+    
+    <ResponseField name="scores" type="object" nullable>
+      Evaluation scores as key-value pairs
+    </ResponseField>
+    
+    <ResponseField name="properties" type="object">
+      All custom properties for the request
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="string" nullable>
+  Error message if the request failed
+</ResponseField>
+
+## Examples
+
+### Basic Query
+
+Retrieve the 10 most recent requests:
+
+```bash
+curl -X POST https://api.helicone.ai/v1/request/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": "all",
+    "limit": 10,
+    "offset": 0,
+    "sort": {
+      "created_at": "desc"
+    }
+  }'
+```
+
+### Filter by Model
+
+Query requests for a specific model:
+
+```bash
+curl -X POST https://api.helicone.ai/v1/request/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "request": {
+        "model": {
+          "equals": "gpt-4"
+        }
+      }
+    },
+    "limit": 50
+  }'
+```
+
+### Filter by Custom Properties
+
+Query requests with specific custom properties:
+
+```bash
+curl -X POST https://api.helicone.ai/v1/request/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "properties": {
+        "environment": {
+          "equals": "production"
+        }
+      }
+    },
+    "limit": 100,
+    "sort": {
+      "created_at": "desc"
+    }
+  }'
+```
+
+### Filter by Date Range
+
+Query requests within a specific time range:
+
+```bash
+curl -X POST https://api.helicone.ai/v1/request/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "left": {
+        "request": {
+          "created_at": {
+            "gte": "2024-01-01T00:00:00Z"
+          }
+        }
+      },
+      "operator": "and",
+      "right": {
+        "request": {
+          "created_at": {
+            "lte": "2024-01-31T23:59:59Z"
+          }
+        }
+      }
+    },
+    "limit": 100
+  }'
+```
+
+### Complex Filter with AND/OR
+
+Query requests with multiple conditions:
+
+```bash
+curl -X POST https://api.helicone.ai/v1/request/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "left": {
+        "request": {
+          "model": {
+            "equals": "gpt-4"
+          }
+        }
+      },
+      "operator": "and",
+      "right": {
+        "response": {
+          "status": {
+            "equals": 200
+          }
+        }
+      }
+    },
+    "includeInputs": true,
+    "isScored": true,
+    "limit": 50
+  }'
+```
+
+## Response Example
+
+```json
+{
+  "data": [
+    {
+      "request_id": "req_123abc",
+      "request_created_at": "2024-01-15T10:30:00Z",
+      "request_path": "/v1/chat/completions",
+      "request_model": "gpt-4",
+      "request_user_id": "user_456",
+      "request_properties": {
+        "environment": "production",
+        "app_version": "1.2.3"
+      },
+      "response_id": "res_789def",
+      "response_created_at": "2024-01-15T10:30:02Z",
+      "response_status": 200,
+      "response_model": "gpt-4-0613",
+      "provider": "OPENAI",
+      "model": "gpt-4",
+      "delay_ms": 2341,
+      "time_to_first_token": 234,
+      "total_tokens": 523,
+      "prompt_tokens": 423,
+      "completion_tokens": 100,
+      "cost": 0.01569,
+      "feedback_rating": true,
+      "scores": {
+        "accuracy": 0.95,
+        "relevance": 0.88
+      },
+      "properties": {
+        "environment": "production",
+        "app_version": "1.2.3"
+      }
+    }
+  ],
+  "error": null
+}
+```
+
+## Notes
+
+- The maximum limit is 100 requests per query
+- Use pagination with `offset` and `limit` for large result sets
+- Filters support comparison operators: `equals`, `not-equals`, `gte`, `lte`, `gt`, `lt`, `like`, `ilike`, `contains`, `not-contains`
+- Complex filters can be built using nested `left`, `operator`, `right` structures
+- Setting `includeInputs: true` includes prompt template input variables
+- For high-volume queries, consider using the ClickHouse endpoint (`/v1/request/query-clickhouse`) for better performance

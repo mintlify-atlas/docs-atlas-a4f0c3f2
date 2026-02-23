@@ -1,0 +1,534 @@
+---
+title: 'Update Properties'
+description: 'Add or update custom properties on requests'
+---
+
+## Overview
+
+Add or update custom properties on existing requests. Properties are key-value pairs that allow you to attach metadata, tags, or contextual information to requests after they've been created. This is useful for post-hoc categorization, debugging, and analytics.
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  PUT
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  /v1/request/{requestId}/property
+</ParamField>
+
+## Authentication
+
+Requires API key authentication via the `Authorization` header:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="requestId" type="string" required>
+  The unique identifier of the request to update
+</ParamField>
+
+## Request Body
+
+<ParamField body="key" type="string" required>
+  The property key/name. Must be a string.
+  
+  **Examples:**
+  - `"environment"`
+  - `"user_tier"`
+  - `"feature_flag"`
+  - `"conversation_id"`
+  - `"customer_id"`
+</ParamField>
+
+<ParamField body="value" type="string" required>
+  The property value. Must be a string.
+  
+  **Examples:**
+  - `"production"`
+  - `"premium"`
+  - `"enabled"`
+  - `"conv_123"`
+  - `"cust_456"`
+</ParamField>
+
+## Response
+
+Returns a success or error response.
+
+<ResponseField name="data" type="null">
+  Always `null` on success
+</ResponseField>
+
+<ResponseField name="error" type="string" nullable>
+  Error message if the request failed, otherwise `null`
+</ResponseField>
+
+## Examples
+
+### Add Single Property
+
+Add an environment tag:
+
+```bash
+curl -X PUT "https://api.helicone.ai/v1/request/req_123abc/property" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "environment",
+    "value": "production"
+  }'
+```
+
+### Update Existing Property
+
+Update a property value (same key, new value):
+
+```bash
+curl -X PUT "https://api.helicone.ai/v1/request/req_123abc/property" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "status",
+    "value": "reviewed"
+  }'
+```
+
+### Add Multiple Properties
+
+Add multiple properties by making multiple requests:
+
+```bash
+# Add environment
+curl -X PUT "https://api.helicone.ai/v1/request/req_123abc/property" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "environment", "value": "production"}'
+
+# Add customer ID
+curl -X PUT "https://api.helicone.ai/v1/request/req_123abc/property" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "customer_id", "value": "cust_456"}'
+
+# Add feature flag
+curl -X PUT "https://api.helicone.ai/v1/request/req_123abc/property" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "new_ui_enabled", "value": "true"}'
+```
+
+### Using in Code
+
+<CodeGroup>
+
+```typescript TypeScript
+async function addProperty(
+  requestId: string,
+  key: string,
+  value: string
+): Promise<void> {
+  const response = await fetch(
+    `https://api.helicone.ai/v1/request/${requestId}/property`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ key, value })
+    }
+  );
+  
+  const result = await response.json();
+  
+  if (result.error) {
+    throw new Error(`Failed to add property: ${result.error}`);
+  }
+}
+
+// Add single property
+await addProperty('req_123abc', 'environment', 'production');
+
+// Add multiple properties
+async function addProperties(
+  requestId: string,
+  properties: Record<string, string>
+): Promise<void> {
+  for (const [key, value] of Object.entries(properties)) {
+    await addProperty(requestId, key, value);
+  }
+}
+
+await addProperties('req_123abc', {
+  environment: 'production',
+  customer_id: 'cust_456',
+  feature_flag: 'new_ui_enabled',
+  user_tier: 'premium'
+});
+```
+
+```python Python
+import requests
+from typing import Dict
+
+def add_property(request_id: str, key: str, value: str):
+    response = requests.put(
+        f'https://api.helicone.ai/v1/request/{request_id}/property',
+        headers={
+            'Authorization': 'Bearer YOUR_API_KEY',
+            'Content-Type': 'application/json'
+        },
+        json={'key': key, 'value': value}
+    )
+    
+    result = response.json()
+    
+    if result.get('error'):
+        raise Exception(f"Failed to add property: {result['error']}")
+
+# Add single property
+add_property('req_123abc', 'environment', 'production')
+
+# Add multiple properties
+def add_properties(request_id: str, properties: Dict[str, str]):
+    for key, value in properties.items():
+        add_property(request_id, key, value)
+
+add_properties('req_123abc', {
+    'environment': 'production',
+    'customer_id': 'cust_456',
+    'feature_flag': 'new_ui_enabled',
+    'user_tier': 'premium'
+})
+```
+
+```javascript JavaScript
+const addProperty = async (requestId, key, value) => {
+  const response = await fetch(
+    `https://api.helicone.ai/v1/request/${requestId}/property`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ key, value })
+    }
+  );
+  
+  return response.json();
+};
+
+// Usage
+await addProperty('req_123abc', 'environment', 'production');
+
+// Add multiple properties
+const addProperties = async (requestId, properties) => {
+  for (const [key, value] of Object.entries(properties)) {
+    await addProperty(requestId, key, value);
+  }
+};
+
+await addProperties('req_123abc', {
+  environment: 'production',
+  customer_id: 'cust_456',
+  user_tier: 'premium'
+});
+```
+
+</CodeGroup>
+
+## Response Examples
+
+### Success Response
+
+```json
+{
+  "data": null,
+  "error": null
+}
+```
+
+### Error Response
+
+```json
+{
+  "data": null,
+  "error": "Request not found"
+}
+```
+
+## Use Cases
+
+### Post-Processing Categorization
+
+Tag requests after analysis:
+
+```typescript
+async function categorizeRequests() {
+  const requests = await queryRequests({
+    filter: { /* uncategorized requests */ },
+    limit: 100
+  });
+  
+  for (const request of requests.data) {
+    // Analyze request content
+    const category = analyzeContent(request.request_body);
+    
+    // Add category property
+    await addProperty(request.request_id, 'category', category);
+    
+    // Add confidence score
+    await addProperty(
+      request.request_id,
+      'category_confidence',
+      String(category.confidence)
+    );
+  }
+}
+```
+
+### Customer Tracking
+
+Link requests to customer accounts:
+
+```typescript
+async function trackCustomerRequest(
+  requestId: string,
+  customerId: string,
+  customerTier: string
+) {
+  await addProperty(requestId, 'customer_id', customerId);
+  await addProperty(requestId, 'customer_tier', customerTier);
+  await addProperty(requestId, 'billing_status', 'active');
+}
+
+// Later, query all requests for a customer
+const customerRequests = await queryRequests({
+  filter: {
+    properties: {
+      customer_id: { equals: 'cust_456' }
+    }
+  }
+});
+```
+
+### A/B Test Annotation
+
+Mark requests with experiment variants:
+
+```typescript
+async function assignExperimentVariant(requestId: string) {
+  const variant = Math.random() < 0.5 ? 'control' : 'treatment';
+  
+  await addProperty(requestId, 'experiment', 'prompt_optimization_v2');
+  await addProperty(requestId, 'variant', variant);
+  await addProperty(requestId, 'experiment_start', new Date().toISOString());
+}
+```
+
+### Error Classification
+
+Tag failed requests with error categories:
+
+```typescript
+async function classifyError(requestId: string, error: Error) {
+  // Determine error type
+  let errorType = 'unknown';
+  if (error.message.includes('rate limit')) {
+    errorType = 'rate_limit';
+  } else if (error.message.includes('timeout')) {
+    errorType = 'timeout';
+  } else if (error.message.includes('invalid')) {
+    errorType = 'validation';
+  }
+  
+  await addProperty(requestId, 'error_type', errorType);
+  await addProperty(requestId, 'error_message', error.message);
+  await addProperty(requestId, 'needs_review', 'true');
+}
+```
+
+### Feature Flag Tracking
+
+Track which features were enabled:
+
+```typescript
+async function trackFeatureFlags(
+  requestId: string,
+  flags: Record<string, boolean>
+) {
+  for (const [flag, enabled] of Object.entries(flags)) {
+    await addProperty(
+      requestId,
+      `feature_${flag}`,
+      enabled ? 'enabled' : 'disabled'
+    );
+  }
+}
+
+await trackFeatureFlags('req_123abc', {
+  new_ui: true,
+  advanced_mode: false,
+  beta_feature: true
+});
+```
+
+### Quality Review Workflow
+
+Manage review status:
+
+```typescript
+async function reviewRequest(requestId: string, reviewerId: string) {
+  await addProperty(requestId, 'review_status', 'in_review');
+  await addProperty(requestId, 'reviewer_id', reviewerId);
+  await addProperty(requestId, 'review_started_at', new Date().toISOString());
+}
+
+async function approveRequest(requestId: string) {
+  await addProperty(requestId, 'review_status', 'approved');
+  await addProperty(requestId, 'review_completed_at', new Date().toISOString());
+}
+
+async function flagRequest(requestId: string, reason: string) {
+  await addProperty(requestId, 'review_status', 'flagged');
+  await addProperty(requestId, 'flag_reason', reason);
+  await addProperty(requestId, 'needs_attention', 'true');
+}
+```
+
+### Cost Allocation
+
+Tag requests for cost tracking:
+
+```typescript
+async function allocateCost(
+  requestId: string,
+  department: string,
+  project: string,
+  costCenter: string
+) {
+  await addProperty(requestId, 'department', department);
+  await addProperty(requestId, 'project', project);
+  await addProperty(requestId, 'cost_center', costCenter);
+  await addProperty(requestId, 'billable', 'true');
+}
+```
+
+## Query by Properties
+
+Filter requests by custom properties:
+
+```bash
+# Query by single property
+curl -X POST "https://api.helicone.ai/v1/request/query" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "properties": {
+        "environment": {
+          "equals": "production"
+        }
+      }
+    }
+  }'
+
+# Query by multiple properties
+curl -X POST "https://api.helicone.ai/v1/request/query" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "left": {
+        "properties": {
+          "environment": { "equals": "production" }
+        }
+      },
+      "operator": "and",
+      "right": {
+        "properties": {
+          "customer_tier": { "equals": "premium" }
+        }
+      }
+    }
+  }'
+```
+
+## Property Naming Best Practices
+
+1. **Use snake_case**: `customer_id` instead of `customerId` or `CustomerID`
+2. **Be consistent**: Use the same property names across your application
+3. **Namespace when needed**: `feature_new_ui` instead of just `new_ui`
+4. **Keep keys short**: `env` vs `environment_name_and_region`
+5. **Document your schema**: Maintain a list of standard properties
+
+### Example Property Schema
+
+```typescript
+// Standard properties for your organization
+const STANDARD_PROPERTIES = {
+  // Environment & Deployment
+  environment: ['production', 'staging', 'development'],
+  region: ['us-east-1', 'eu-west-1', 'ap-south-1'],
+  version: 'semantic version string',
+  
+  // Customer & User
+  customer_id: 'customer identifier',
+  user_tier: ['free', 'pro', 'enterprise'],
+  organization_id: 'organization identifier',
+  
+  // Features & Experiments
+  experiment_id: 'experiment identifier',
+  variant: ['control', 'treatment'],
+  feature_flags: 'comma-separated feature flags',
+  
+  // Cost & Billing
+  cost_center: 'cost center code',
+  department: 'department name',
+  billable: ['true', 'false'],
+  
+  // Quality & Review
+  review_status: ['pending', 'in_review', 'approved', 'flagged'],
+  quality_score: 'numeric score as string',
+  needs_attention: ['true', 'false']
+} as const;
+```
+
+## Notes
+
+- Properties are stored as string key-value pairs
+- If a property key already exists, the value will be updated
+- Properties are immediately available in queries and analytics
+- Maximum recommended property key length: 100 characters
+- Maximum recommended property value length: 1000 characters
+- Properties can be set during request creation via Helicone headers or after the fact via this API
+- Use properties in combination with feedback and scores for comprehensive request tagging
+
+## Comparison with Request-Time Properties
+
+You can also set properties when making requests using Helicone headers:
+
+```bash
+# Setting properties at request time
+curl https://oai.helicone.ai/v1/chat/completions \
+  -H "Helicone-Auth: Bearer YOUR_API_KEY" \
+  -H "Helicone-Property-Environment: production" \
+  -H "Helicone-Property-Customer-Id: cust_456" \
+  # ... rest of request
+```
+
+Use this API endpoint when:
+- You need to add properties after a request has been made
+- Properties are determined through post-processing or analysis
+- You're categorizing or tagging historical data
+- Properties depend on the response or subsequent events
+
+Use request-time headers when:
+- You know the properties at request time
+- Properties are part of your application context
+- You want to minimize API calls

@@ -1,0 +1,434 @@
+---
+title: "Prompt Management"
+sidebarTitle: "Prompt Management"
+description: "Deploy and iterate prompts through the AI Gateway without code changes"
+---
+
+Helicone's AI Gateway integrates directly with our prompt management system without the need for custom packages or code changes.
+
+This guide shows you how to integrate the AI Gateway with prompt management, not the actual prompt management itself. For creating and managing prompts, see [Prompt Management](/features/advanced-usage/prompts).
+
+## Why Use Prompt Integration?
+
+Instead of hardcoding prompts in your application, reference them by ID:
+
+<CodeGroup>
+```typescript Before
+// ❌ Prompt hardcoded in your app
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system", 
+      content: "You are a helpful customer support agent for TechCorp. Be friendly and solution-oriented."
+    },
+    {
+      role: "user",
+      content: `Customer ${customerName} is asking about ${issueType}`
+    }
+  ]
+});
+```
+
+```typescript After
+// ✅ Prompt managed in Helicone dashboard
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  prompt_id: "customer_support",
+  inputs: {
+    customer_name: customerName,
+    issue_type: issueType
+  }
+});
+// The prompt template lives in Helicone, not your code
+```
+</CodeGroup>
+
+## Gateway vs SDK Integration
+
+Without the AI Gateway, using managed prompts requires multiple steps:
+
+<CodeGroup>
+```typescript SDK Approach (Complex)
+// 1. Install package
+npm install @helicone/helpers
+
+// 2. Initialize prompt manager
+const promptManager = new HeliconePromptManager({
+  apiKey: "your-helicone-api-key"
+});
+
+// 3. Fetch and compile prompt (separate API call)
+const { body, errors } = await promptManager.getPromptBody({
+  prompt_id: "abc123",
+  inputs: { customer_name: "John", ... }
+});
+
+// 4. Handle errors manually
+if (errors.length > 0) {
+  console.warn("Validation errors:", errors);
+}
+
+// 5. Finally make the LLM call
+const response = await openai.chat.completions.create(body);
+```
+
+```typescript Gateway Approach (Simple)
+// Just reference the prompt - gateway handles everything
+const response = await client.chat.completions.create({
+  prompt_id: "abc123",
+  inputs: { customer_name: "John", ... }
+});
+```
+</CodeGroup>
+
+<Info>
+**Why the gateway is better:**
+- **No extra packages** - Works with your existing OpenAI SDK
+- **Single API call** - Gateway fetches and compiles automatically
+- **Lower latency** - Everything happens server-side in one request
+- **Automatic error handling** - Invalid inputs return clear error messages
+- **Cleaner code** - No prompt management logic in your application
+</Info>
+
+## Integration Steps
+
+<Steps>
+<Step title="Create prompts in Helicone">
+  [Build and test prompts](/features/advanced-usage/prompts) with variables in the dashboard
+</Step>
+<Step title="Use prompt_id in your code">
+  Replace `messages` with `prompt_id` and `inputs` in your gateway calls
+</Step>
+</Steps>
+
+## API Parameters
+
+Use these parameters in your chat completions request to integrate with saved prompts:
+
+<ParamField body="prompt_id" type="string" required>
+  The ID of your saved prompt from the Helicone dashboard
+</ParamField>
+
+<ParamField body="environment" type="string" default="production">
+  Which environment version to use: `development`, `staging`, or `production`
+</ParamField>
+
+<ParamField body="inputs" type="object" required>
+  Variables to fill in your prompt template (e.g., `{"customer_name": "John", "issue_type": "billing"}`)
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  Any supported model - works with the unified gateway format
+</ParamField>
+
+## Example Usage
+
+```typescript
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  prompt_id: "customer_support_v2",
+  environment: "production",
+  inputs: {
+    customer_name: "Sarah Johnson",
+    issue_type: "billing",
+    customer_message: "I was charged twice this month"
+  }
+});
+```
+
+## Real-World Examples
+
+### Customer Support Bot
+
+Manage support prompts without redeploying:
+
+```typescript
+const client = new OpenAI({
+  baseURL: "https://ai-gateway.helicone.ai",
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+async function handleSupportTicket(ticket: SupportTicket) {
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    prompt_id: "support_ticket_response",
+    environment: "production",
+    inputs: {
+      customer_name: ticket.customerName,
+      issue_category: ticket.category,
+      issue_description: ticket.description,
+      customer_tier: ticket.customerTier, // Premium, Standard, etc.
+    }
+  });
+  
+  return response.choices[0].message.content;
+}
+```
+
+**Benefits:**
+- Update prompt wording without code changes
+- A/B test different support approaches
+- Customize responses by customer tier
+- Track prompt version performance
+
+### Content Generation Pipeline
+
+Manage prompts across multiple generation steps:
+
+```typescript
+async function generateBlogPost(topic: string, keywords: string[]) {
+  // Step 1: Generate outline
+  const outline = await client.chat.completions.create({
+    model: "claude-sonnet-4",
+    prompt_id: "blog_outline_generator",
+    inputs: { topic, keywords: keywords.join(", ") }
+  });
+
+  // Step 2: Generate introduction
+  const intro = await client.chat.completions.create({
+    model: "gpt-4o",
+    prompt_id: "blog_intro_writer",
+    inputs: { 
+      topic, 
+      outline: outline.choices[0].message.content 
+    }
+  });
+
+  // Step 3: Generate body
+  const body = await client.chat.completions.create({
+    model: "claude-sonnet-4",
+    prompt_id: "blog_body_writer",
+    inputs: { 
+      outline: outline.choices[0].message.content,
+      intro: intro.choices[0].message.content
+    }
+  });
+
+  return { outline, intro, body };
+}
+```
+
+**Benefits:**
+- Iterate on each prompt independently
+- Use different models for different steps
+- Track which prompt versions produce best content
+
+### Multi-language Support
+
+Manage translations through prompts:
+
+```typescript
+async function translateWithContext(
+  text: string, 
+  targetLanguage: string,
+  context: string
+) {
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    prompt_id: "contextual_translation",
+    environment: "production",
+    inputs: {
+      source_text: text,
+      target_language: targetLanguage,
+      context: context, // e.g., "technical documentation", "casual conversation"
+    }
+  });
+  
+  return response.choices[0].message.content;
+}
+```
+
+**Benefits:**
+- Fine-tune translations without code changes
+- Manage context-specific translation styles
+- Track translation quality by prompt version
+
+## Combining with Provider Routing
+
+Prompts work seamlessly with all gateway features:
+
+```typescript
+const response = await client.chat.completions.create({
+  // Use Claude with automatic fallback
+  model: "claude-sonnet-4/anthropic,claude-sonnet-4",
+  
+  // Reference managed prompt
+  prompt_id: "data_analysis_prompt",
+  environment: "production",
+  
+  // Fill in prompt variables
+  inputs: {
+    dataset_name: "Q4_sales",
+    analysis_type: "trend_analysis",
+    time_period: "last_quarter"
+  }
+});
+```
+
+**Result:** Reliable multi-provider routing + centralized prompt management.
+
+## Environment Management
+
+Use environments to test prompt changes safely:
+
+### Development Environment
+
+```typescript
+// Test new prompt versions
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  prompt_id: "customer_support",
+  environment: "development", // Use dev version
+  inputs: { customer_name: "Test User" }
+});
+```
+
+### Staging Environment
+
+```typescript
+// Validate prompts before production
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  prompt_id: "customer_support",
+  environment: "staging",
+  inputs: { customer_name: "Staging User" }
+});
+```
+
+### Production Environment
+
+```typescript
+// Default - stable production prompts
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  prompt_id: "customer_support",
+  environment: "production", // Or omit (defaults to production)
+  inputs: { customer_name: "Real User" }
+});
+```
+
+## Error Handling
+
+### Missing Prompt
+
+```json
+{
+  "error": {
+    "message": "Prompt not found: invalid_prompt_id",
+    "code": "prompt_not_found"
+  }
+}
+```
+
+### Invalid Inputs
+
+```json
+{
+  "error": {
+    "message": "Variable 'customer_name' is 'string' but got 'undefined'",
+    "code": "invalid_prompt_inputs"
+  }
+}
+```
+
+### Missing Model
+
+If you don't specify a model, the gateway uses the model from the prompt:
+
+```typescript
+// Model is pulled from the prompt configuration
+const response = await client.chat.completions.create({
+  prompt_id: "customer_support",
+  inputs: { customer_name: "John" }
+  // No model specified - uses prompt's default model
+});
+```
+
+## Best Practices
+
+### 1. Use Descriptive Prompt IDs
+
+```typescript
+// ✅ Good - Clear purpose
+prompt_id: "customer_support_tier_1"
+prompt_id: "blog_intro_writer_seo"
+prompt_id: "data_analysis_financial"
+
+// ❌ Bad - Unclear
+prompt_id: "prompt_1"
+prompt_id: "test"
+prompt_id: "new_prompt"
+```
+
+### 2. Version Your Prompts
+
+Use the environment system for versioning:
+
+- `development` - Experimental prompts
+- `staging` - Validated but not production-ready
+- `production` - Stable, tested prompts
+
+### 3. Validate Inputs Client-Side
+
+```typescript
+function validateInputs(inputs: Record<string, any>) {
+  const required = ['customer_name', 'issue_type'];
+  for (const field of required) {
+    if (!inputs[field]) {
+      throw new Error(`Missing required field: ${field}`);
+    }
+  }
+}
+
+// Validate before calling gateway
+validateInputs(inputs);
+const response = await client.chat.completions.create({
+  prompt_id: "customer_support",
+  inputs
+});
+```
+
+### 4. Monitor Prompt Performance
+
+Track prompt effectiveness in the [Helicone dashboard](https://us.helicone.ai/prompts):
+- Compare costs across prompt versions
+- Analyze response quality
+- Identify problematic inputs
+- A/B test different approaches
+
+### 5. Use Type Safety
+
+```typescript
+interface SupportPromptInputs {
+  customer_name: string;
+  issue_type: string;
+  customer_message: string;
+  customer_tier: 'premium' | 'standard' | 'basic';
+}
+
+async function getSupportResponse(inputs: SupportPromptInputs) {
+  return await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    prompt_id: "customer_support",
+    inputs
+  });
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Create Your First Prompt" icon="pencil" href="/features/advanced-usage/prompts">
+  Learn to build prompts with variables in the dashboard
+</Card>
+<Card title="Provider Routing" icon="route" href="/gateway/provider-routing">
+  Combine prompts with automatic routing and fallbacks for reliability
+</Card>
+<Card title="Automatic Fallbacks" icon="shield-halved" href="/gateway/fallbacks">
+  Add resilience to your prompt-powered features
+</Card>
+<Card title="Prompt Registry" icon="book" href="https://us.helicone.ai/prompts">
+  Manage all your prompts in one place
+</Card>
+</CardGroup>

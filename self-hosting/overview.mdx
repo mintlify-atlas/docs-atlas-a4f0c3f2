@@ -1,0 +1,152 @@
+---
+title: "Self-Hosting Helicone"
+sidebarTitle: "Overview"
+description: "Deploy and manage your own instance of Helicone with full control over your LLM observability infrastructure."
+---
+
+## Why Self-Host Helicone?
+
+Self-hosting Helicone gives you complete control over your LLM observability infrastructure. Here are the key benefits:
+
+- **Data Privacy**: Keep all request logs, prompts, and responses within your infrastructure
+- **Custom Configuration**: Configure components to match your specific requirements
+- **Network Control**: Deploy behind your firewall with full control over access
+- **Cost Management**: No per-request pricing - only infrastructure costs
+- **Compliance**: Meet strict data residency and compliance requirements
+
+## Architecture Components
+
+Helicone's architecture consists of several core services that work together:
+
+### Core Services
+
+- **Web Dashboard** (Port 3000): Next.js application providing the user interface for viewing requests, analytics, and configuration
+- **Jawn API** (Port 8585): Backend API server handling authentication, data processing, and serving the LLM proxy
+- **Worker**: Cloudflare Worker-compatible service for proxying requests to LLM providers (OpenAI, Anthropic, etc.)
+
+### Infrastructure Services
+
+- **PostgreSQL**: Primary database storing users, organizations, API keys, and metadata
+- **ClickHouse**: Analytics database for high-performance querying of request logs
+- **MinIO/S3**: Object storage for request/response bodies (large payloads)
+- **Redis**: Caching and session management
+
+### Optional Services
+
+- **Kafka**: Event streaming for high-throughput deployments (experimental)
+- **Mailhog**: Local SMTP server for development (not for production)
+
+## System Requirements
+
+### Minimum Requirements (Development/Testing)
+
+- **CPU**: 4 cores
+- **RAM**: 8GB
+- **Storage**: 20GB
+- **Network**: Outbound access to LLM provider APIs
+
+### Recommended Requirements (Production)
+
+- **CPU**: 8+ cores
+- **RAM**: 16GB+
+- **Storage**: 100GB+ (depends on request volume)
+- **Network**: 
+  - Outbound: Access to LLM provider APIs
+  - Inbound: Ports 3000, 8585, 9080 accessible from client browsers
+
+### Software Requirements
+
+- Docker 20.10+ and Docker Compose 2.0+ (for Docker deployment)
+- Kubernetes 1.24+ and Helm 3.0+ (for Kubernetes deployment)
+- Node.js 20+ (for manual development setup)
+
+## Deployment Options
+
+Helicone offers multiple deployment methods to suit different infrastructure needs:
+
+<CardGroup cols={2}>
+  <Card
+    title="Docker Deployment"
+    icon="docker"
+    href="/self-hosting/docker"
+  >
+    Quick setup using Docker Compose or all-in-one container. Perfect for development and small-scale production deployments.
+  </Card>
+  
+  <Card
+    title="Kubernetes Deployment"
+    icon="cubes"
+    href="/self-hosting/kubernetes"
+  >
+    Production-ready deployment with Helm charts for scalability and high availability. Enterprise support available.
+  </Card>
+</CardGroup>
+
+### Choosing the Right Option
+
+**Use Docker if:**
+- You need a quick setup for development or testing
+- Running on a single server with moderate traffic
+- You want minimal complexity
+
+**Use Kubernetes if:**
+- You need horizontal scaling and high availability
+- Managing multiple environments (dev, staging, production)
+- You already have Kubernetes infrastructure
+- You need enterprise-grade monitoring and observability
+
+## Network Architecture
+
+### Port Requirements
+
+These ports must be accessible from client browsers:
+
+| Port | Service | Purpose |
+|------|---------|----------|
+| 3000 | Web Dashboard | Browser access to UI |
+| 8585 | Jawn API/Proxy | API calls and LLM proxying |
+| 9080 | MinIO/S3 | Request/response body access |
+
+Internal ports (can be firewalled):
+
+| Port | Service |
+|------|----------|
+| 5432 | PostgreSQL |
+| 8123 | ClickHouse HTTP |
+| 9000 | ClickHouse Native |
+| 6379 | Redis |
+
+### Data Flow
+
+1. **Client Application** → Makes LLM request to Helicone proxy (port 8585)
+2. **Jawn/Worker** → Logs metadata to ClickHouse, stores body in S3/MinIO
+3. **Worker** → Forwards request to actual LLM provider (OpenAI, Anthropic)
+4. **LLM Provider** → Returns response to Worker
+5. **Worker** → Logs response, returns to client
+6. **Web Dashboard** → Queries ClickHouse and PostgreSQL to display analytics
+
+## Security Considerations
+
+<Warning>
+  Port 8585 (LLM proxy) does not require authentication by default. Anyone with access can proxy requests through your endpoint. Restrict access via firewall rules or configure authentication.
+</Warning>
+
+- **Authentication**: Configure `BETTER_AUTH_SECRET` with a strong random value
+- **Database Passwords**: Change default passwords in production
+- **S3 Credentials**: Use strong credentials for MinIO/S3
+- **HTTPS**: Deploy a reverse proxy (Caddy, nginx) for HTTPS support
+- **Network Isolation**: Use firewall rules to restrict internal service access
+
+## Next Steps
+
+Choose your deployment method:
+
+- [Docker Setup Guide](/self-hosting/docker) - Get started in minutes
+- [Kubernetes Setup Guide](/self-hosting/kubernetes) - Enterprise deployment with Helm
+
+## Getting Help
+
+If you need assistance with self-hosting:
+
+- Join our [Discord community](https://discord.com/invite/zsSTcH2qhG) for community support
+- For enterprise support and Kubernetes Helm charts, [schedule a call](https://cal.com/team/helicone/helicone-discovery)

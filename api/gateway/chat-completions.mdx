@@ -1,0 +1,467 @@
+---
+title: 'Chat Completions'
+description: 'Create chat completions using the Helicone AI Gateway'
+---
+
+## Overview
+
+The chat completions endpoint provides OpenAI-compatible chat completion functionality with unified access to multiple LLM providers through the Helicone AI Gateway.
+
+## Authentication
+
+All requests to the AI Gateway require authentication using your Helicone API key in the `Authorization` header:
+
+```bash
+Authorization: Bearer YOUR_HELICONE_API_KEY
+```
+
+## Endpoint
+
+<CodeGroup>
+```bash cURL
+curl https://ai-gateway.helicone.ai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_HELICONE_API_KEY" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello, how are you?"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://ai-gateway.helicone.ai/v1/chat/completions",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": "Bearer YOUR_HELICONE_API_KEY"
+    },
+    json={
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Hello, how are you?"}
+        ]
+    }
+)
+```
+
+```javascript JavaScript
+fetch('https://ai-gateway.helicone.ai/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer YOUR_HELICONE_API_KEY'
+  },
+  body: JSON.stringify({
+    model: 'gpt-4',
+    messages: [
+      { role: 'user', content: 'Hello, how are you?' }
+    ]
+  })
+});
+```
+</CodeGroup>
+
+## Request Parameters
+
+<ParamField path="model" type="string" required>
+  The model identifier to use for the completion (e.g., `gpt-4`, `claude-3-opus-20240229`)
+</ParamField>
+
+<ParamField path="messages" type="array" required>
+  Array of message objects representing the conversation history. Each message must have a `role` and `content`.
+  
+  Supported roles:
+  - `system` - System instructions
+  - `user` - User messages
+  - `assistant` - Assistant responses
+  - `tool` - Tool/function call results
+  - `function` - Legacy function call results
+  - `developer` - Developer-level instructions
+</ParamField>
+
+<ParamField path="temperature" type="number">
+  Sampling temperature between 0 and 2. Higher values make output more random. Default varies by model.
+</ParamField>
+
+<ParamField path="max_tokens" type="integer">
+  Maximum number of tokens to generate in the completion.
+</ParamField>
+
+<ParamField path="max_completion_tokens" type="integer">
+  Maximum number of completion tokens to generate (alternative to `max_tokens`).
+</ParamField>
+
+<ParamField path="top_p" type="number">
+  Nucleus sampling parameter. Alternative to temperature. Value between 0 and 1.
+</ParamField>
+
+<ParamField path="top_k" type="number">
+  Top-K sampling parameter for limiting token selection.
+</ParamField>
+
+<ParamField path="stream" type="boolean" default="false">
+  Whether to stream the response as Server-Sent Events (SSE).
+</ParamField>
+
+<ParamField path="stream_options" type="object">
+  Options for streaming responses.
+  
+  <Expandable title="properties">
+    <ParamField path="include_usage" type="boolean">
+      Include token usage information in the stream.
+    </ParamField>
+    
+    <ParamField path="include_obfuscation" type="boolean">
+      Include obfuscation metadata in the stream.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="stop" type="string | array">
+  Up to 4 sequences where the API will stop generating further tokens.
+</ParamField>
+
+<ParamField path="n" type="integer" default="1">
+  Number of chat completion choices to generate (1-128).
+</ParamField>
+
+<ParamField path="presence_penalty" type="number" default="0">
+  Penalize new tokens based on whether they appear in the text so far (-2.0 to 2.0).
+</ParamField>
+
+<ParamField path="frequency_penalty" type="number" default="0">
+  Penalize new tokens based on their frequency in the text so far (-2.0 to 2.0).
+</ParamField>
+
+<ParamField path="logit_bias" type="object">
+  Modify the likelihood of specified tokens appearing in the completion.
+</ParamField>
+
+<ParamField path="logprobs" type="boolean" default="false">
+  Whether to return log probabilities of output tokens.
+</ParamField>
+
+<ParamField path="top_logprobs" type="integer">
+  Number of most likely tokens to return at each position (0-20). Requires `logprobs: true`.
+</ParamField>
+
+<ParamField path="response_format" type="object">
+  Format for the model's output.
+  
+  <Expandable title="properties">
+    <ParamField path="type" type="string">
+      One of: `text`, `json_object`, `json_schema`
+    </ParamField>
+    
+    <ParamField path="json_schema" type="object">
+      JSON schema definition when `type` is `json_schema`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="tools" type="array">
+  List of tools the model can call. Use this for function calling.
+  
+  <Expandable title="Tool types">
+    <ParamField path="type" type="string">
+      Tool type: `function` or `custom`
+    </ParamField>
+    
+    <ParamField path="function" type="object">
+      Function definition with `name`, `description`, and `parameters`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="tool_choice" type="string | object">
+  Controls which tool the model should use. Options: `none`, `auto`, `required`, or specific tool.
+</ParamField>
+
+<ParamField path="parallel_tool_calls" type="boolean" default="true">
+  Whether to enable parallel function calling.
+</ParamField>
+
+<ParamField path="user" type="string">
+  Unique identifier for the end-user, for monitoring and abuse detection.
+</ParamField>
+
+<ParamField path="seed" type="integer">
+  Random seed for deterministic sampling.
+</ParamField>
+
+<ParamField path="service_tier" type="string">
+  Service tier to use. Options: `auto`, `default`, `flex`, `scale`, `priority`
+</ParamField>
+
+<ParamField path="reasoning_effort" type="string">
+  Amount of reasoning effort for reasoning models. Options: `minimal`, `low`, `medium`, `high`
+</ParamField>
+
+<ParamField path="reasoning_options" type="object">
+  Options for reasoning models.
+  
+  <Expandable title="properties">
+    <ParamField path="budget_tokens" type="integer">
+      Token budget for reasoning.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Custom metadata to attach to the request for tracking and filtering in Helicone.
+</ParamField>
+
+<ParamField path="cache_control" type="object">
+  Cache control settings for prompt caching.
+  
+  <Expandable title="properties">
+    <ParamField path="type" type="string">
+      Cache type: `ephemeral`
+    </ParamField>
+    
+    <ParamField path="ttl" type="string">
+      Time-to-live for the cache.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="prompt_cache_key" type="string">
+  Key for prompt caching to reuse previous prompts.
+</ParamField>
+
+## Response Format
+
+### Non-Streaming Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the completion.
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  Object type, always `chat.completion`.
+</ResponseField>
+
+<ResponseField name="created" type="integer">
+  Unix timestamp of when the completion was created.
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  The model used for completion.
+</ResponseField>
+
+<ResponseField name="choices" type="array">
+  Array of completion choices.
+  
+  <Expandable title="Choice properties">
+    <ResponseField name="index" type="integer">
+      Index of the choice.
+    </ResponseField>
+    
+    <ResponseField name="message" type="object">
+      The generated message.
+      
+      <Expandable title="Message properties">
+        <ResponseField name="role" type="string">
+          Role of the message (e.g., `assistant`).
+        </ResponseField>
+        
+        <ResponseField name="content" type="string">
+          The content of the message.
+        </ResponseField>
+        
+        <ResponseField name="tool_calls" type="array">
+          Tool calls made by the model (if any).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="finish_reason" type="string">
+      Reason the completion finished: `stop`, `length`, `tool_calls`, `content_filter`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="usage" type="object">
+  Token usage information.
+  
+  <Expandable title="Usage properties">
+    <ResponseField name="prompt_tokens" type="integer">
+      Number of tokens in the prompt.
+    </ResponseField>
+    
+    <ResponseField name="completion_tokens" type="integer">
+      Number of tokens in the completion.
+    </ResponseField>
+    
+    <ResponseField name="total_tokens" type="integer">
+      Total number of tokens used.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Streaming Response
+
+When `stream: true`, the response is returned as Server-Sent Events (SSE). Each event contains a JSON object with:
+
+```json
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion.chunk",
+  "created": 1677652288,
+  "model": "gpt-4",
+  "choices": [
+    {
+      "index": 0,
+      "delta": {
+        "content": "Hello"
+      },
+      "finish_reason": null
+    }
+  ]
+}
+```
+
+The stream ends with a `[DONE]` message.
+
+## Error Responses
+
+<ResponseField name="error" type="object">
+  Error information when a request fails.
+  
+  <Expandable title="Error properties">
+    <ResponseField name="message" type="string">
+      Human-readable error message.
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Error type (e.g., `invalid_request_error`, `authentication_error`).
+    </ResponseField>
+    
+    <ResponseField name="code" type="string">
+      Error code for programmatic handling.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Responses
+
+<CodeGroup>
+```json Non-Streaming
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "gpt-4",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I'm doing well, thank you for asking. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 13,
+    "completion_tokens": 17,
+    "total_tokens": 30
+  }
+}
+```
+
+```json Error Response
+{
+  "error": {
+    "message": "Invalid Helicone API key",
+    "type": "authentication_error",
+    "code": "invalid_api_key"
+  }
+}
+```
+</CodeGroup>
+
+## Advanced Features
+
+### Function Calling
+
+Define tools that the model can use:
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [{"role": "user", "content": "What's the weather in Boston?"}],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {"type": "string"}
+          },
+          "required": ["location"]
+        }
+      }
+    }
+  ]
+}
+```
+
+### Vision (Image Input)
+
+Include images in your messages:
+
+```json
+{
+  "model": "gpt-4-vision-preview",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "What's in this image?"},
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "https://example.com/image.jpg",
+            "detail": "high"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### JSON Mode
+
+Force the model to output valid JSON:
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [{"role": "user", "content": "Generate a user profile"}],
+  "response_format": {"type": "json_object"}
+}
+```
+
+## Rate Limits
+
+Rate limits are applied at the organization level and vary based on your Helicone plan. Monitor your usage through the Helicone dashboard.
+
+## Best Practices
+
+- Always include error handling for API calls
+- Use streaming for better user experience with long responses
+- Set appropriate `max_tokens` to control costs
+- Use `metadata` to track and filter requests in Helicone
+- Implement retry logic with exponential backoff for transient errors

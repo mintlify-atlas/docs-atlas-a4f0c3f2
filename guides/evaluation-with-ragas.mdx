@@ -1,0 +1,527 @@
+---
+title: "Evaluate RAG Applications with RAGAS"
+sidebarTitle: "Evaluation with RAGAS"
+description: "Step-by-step tutorial for integrating RAGAS evaluation scores with Helicone for RAG observability"
+---
+
+Learn how to evaluate Retrieval-Augmented Generation (RAG) applications using RAGAS and report evaluation scores to Helicone for centralized observability.
+
+## What You'll Build
+
+A RAG evaluation pipeline that:
+- Runs RAGAS metrics (faithfulness, answer relevancy, context precision)
+- Reports scores to Helicone
+- Tracks evaluation trends over time
+- Identifies low-performing responses
+
+## Prerequisites
+
+- Helicone API key ([get one here](https://helicone.ai))
+- OpenAI API key
+- Python 3.8+ with pip
+- A RAG application making LLM calls
+
+## Step 1: Install Dependencies
+
+```bash
+pip install openai helicone ragas datasets
+```
+
+<Note>
+RAGAS is an evaluation framework for RAG pipelines. Learn more at [docs.ragas.io](https://docs.ragas.io)
+</Note>
+
+## Step 2: Set Up Helicone Client
+
+Configure your LLM client to log requests to Helicone:
+
+```python
+from openai import OpenAI
+import os
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    }
+)
+```
+
+## Step 3: Build RAG Function with Tracking
+
+Create a RAG function that tracks Helicone request IDs:
+
+```python
+def rag_query(question: str, contexts: list[str]) -> tuple[str, str]:
+    """
+    Perform RAG query and return answer + Helicone request ID.
+    
+    Args:
+        question: User question
+        contexts: Retrieved context chunks from vector DB
+        
+    Returns:
+        Tuple of (answer, helicone_request_id)
+    """
+    # Format context for prompt
+    context_text = "\n\n".join(contexts)
+    
+    # Make RAG request
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system",
+                "content": "Answer the question based only on the provided context."
+            },
+            {
+                "role": "user",
+                "content": f"Context:\n{context_text}\n\nQuestion: {question}"
+            }
+        ],
+        extra_headers={
+            "Helicone-Property-Feature": "rag-qa",
+            "Helicone-Property-Environment": "evaluation",
+        }
+    )
+    
+    answer = response.choices[0].message.content
+    
+    # Extract Helicone request ID from response
+    helicone_id = response.id  # OpenAI's response ID
+    # Note: In practice, you'd get this from response headers
+    # when using .with_response() or similar methods
+    
+    return answer, helicone_id
+```
+
+<Tip>
+To get the Helicone request ID from response headers, use the OpenAI client's `.with_response()` method or inspect response headers directly.
+</Tip>
+
+## Step 4: Implement RAGAS Evaluation
+
+Run RAGAS metrics on your RAG responses:
+
+```python
+from ragas import evaluate
+from ragas.metrics import (
+    faithfulness,
+    answer_relevancy,
+    context_precision,
+    context_recall
+)
+from datasets import Dataset
+
+def evaluate_rag_response(
+    question: str,
+    answer: str,
+    contexts: list[str],
+    ground_truth: str
+) -> dict:
+    """
+    Evaluate a RAG response using RAGAS metrics.
+    
+    Args:
+        question: The user's question
+        answer: The generated answer
+        contexts: Retrieved context chunks
+        ground_truth: Expected correct answer
+        
+    Returns:
+        Dictionary of metric scores (0-1 scale)
+    """
+    # Prepare data in RAGAS format
+    data = {
+        "question": [question],
+        "answer": [answer],
+        "contexts": [contexts],
+        "ground_truth": [ground_truth]
+    }
+    dataset = Dataset.from_dict(data)
+    
+    # Define metrics to evaluate
+    metrics = [
+        faithfulness,        # Is answer faithful to context?
+        answer_relevancy,    # Is answer relevant to question?
+        context_precision,   # Are contexts relevant?
+        context_recall       # Is ground truth covered by contexts?
+    ]
+    
+    # Run evaluation
+    result = evaluate(dataset, metrics=metrics)
+    
+    # Extract scores
+    scores = {
+        "faithfulness": result.get("faithfulness", 0),
+        "answer_relevancy": result.get("answer_relevancy", 0),
+        "context_precision": result.get("context_precision", 0),
+        "context_recall": result.get("context_recall", 0)
+    }
+    
+    return scores
+```
+
+<Note>
+**RAGAS Metrics Explained:**
+- **Faithfulness**: Does the answer contain only information from the contexts? (no hallucinations)
+- **Answer Relevancy**: How relevant is the answer to the question?
+- **Context Precision**: Are the retrieved contexts relevant to the question?
+- **Context Recall**: Do the contexts cover the ground truth answer?
+</Note>
+
+## Step 5: Report Scores to Helicone
+
+Send evaluation scores to Helicone for tracking:
+
+```python
+import requests
+
+def report_scores_to_helicone(helicone_id: str, scores: dict) -> bool:
+    """
+    Report RAGAS evaluation scores to Helicone.
+    
+    Args:
+        helicone_id: The Helicone request ID
+        scores: Dictionary of RAGAS scores (0-1 scale)
+        
+    Returns:
+        True if successful
+    """
+    # Convert RAGAS scores (0-1) to integers (0-100)
+    integer_scores = {
+        key: int(value * 100) 
+        for key, value in scores.items()
+    }
+    
+    # Report to Helicone
+    response = requests.post(
+        f"https://api.helicone.ai/v1/request/{helicone_id}/score",
+        headers={
+            "Authorization": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "scores": integer_scores
+        }
+    )
+    
+    if response.status_code == 200:
+        print(f"Scores reported successfully for request {helicone_id}")
+        return True
+    else:
+        print(f"Failed to report scores: {response.status_code} - {response.text}")
+        return False
+```
+
+<Warning>
+**Important**: Helicone scores must be integers or booleans. Convert RAGAS scores (0-1 floats) to integers (0-100) by multiplying by 100.
+</Warning>
+
+## Step 6: Create End-to-End Pipeline
+
+Put everything together:
+
+```python
+def evaluate_rag_pipeline(
+    test_cases: list[dict]
+) -> list[dict]:
+    """
+    Evaluate multiple RAG test cases and report to Helicone.
+    
+    Args:
+        test_cases: List of dicts with keys:
+            - question: str
+            - contexts: list[str]
+            - ground_truth: str
+            
+    Returns:
+        List of evaluation results
+    """
+    results = []
+    
+    for i, test_case in enumerate(test_cases):
+        print(f"\nEvaluating test case {i+1}/{len(test_cases)}...")
+        
+        # Step 1: Run RAG query
+        answer, helicone_id = rag_query(
+            test_case["question"],
+            test_case["contexts"]
+        )
+        
+        print(f"Question: {test_case['question']}")
+        print(f"Answer: {answer}")
+        
+        # Step 2: Evaluate with RAGAS
+        scores = evaluate_rag_response(
+            test_case["question"],
+            answer,
+            test_case["contexts"],
+            test_case["ground_truth"]
+        )
+        
+        print(f"Scores: {scores}")
+        
+        # Step 3: Report to Helicone
+        success = report_scores_to_helicone(helicone_id, scores)
+        
+        results.append({
+            "question": test_case["question"],
+            "answer": answer,
+            "scores": scores,
+            "helicone_id": helicone_id,
+            "reported": success
+        })
+    
+    return results
+```
+
+## Step 7: Run Evaluation
+
+Create test cases and run the pipeline:
+
+```python
+# Define test cases
+test_cases = [
+    {
+        "question": "What is the capital of France?",
+        "contexts": [
+            "France is a country in Western Europe.",
+            "Paris is the capital and largest city of France.",
+            "The city has a population of over 2 million people."
+        ],
+        "ground_truth": "Paris"
+    },
+    {
+        "question": "When was the Eiffel Tower built?",
+        "contexts": [
+            "The Eiffel Tower was constructed from 1887 to 1889.",
+            "It was designed by engineer Gustave Eiffel.",
+            "The tower is located in Paris, France."
+        ],
+        "ground_truth": "1887-1889"
+    },
+    {
+        "question": "What is photosynthesis?",
+        "contexts": [
+            "Photosynthesis is a process used by plants to convert light energy into chemical energy.",
+            "It occurs in the chloroplasts of plant cells.",
+            "Carbon dioxide and water are converted into glucose and oxygen."
+        ],
+        "ground_truth": "A process by which plants convert light energy into chemical energy"
+    }
+]
+
+# Run evaluation
+if __name__ == "__main__":
+    results = evaluate_rag_pipeline(test_cases)
+    
+    # Print summary
+    print("\n" + "="*50)
+    print("EVALUATION SUMMARY")
+    print("="*50)
+    
+    avg_scores = {
+        "faithfulness": 0,
+        "answer_relevancy": 0,
+        "context_precision": 0,
+        "context_recall": 0
+    }
+    
+    for result in results:
+        for metric, score in result["scores"].items():
+            avg_scores[metric] += score
+    
+    for metric in avg_scores:
+        avg_scores[metric] /= len(results)
+        print(f"{metric}: {avg_scores[metric]:.2%}")
+    
+    print(f"\nView detailed results in Helicone: https://helicone.ai/requests")
+```
+
+## Expected Output
+
+```
+Evaluating test case 1/3...
+Question: What is the capital of France?
+Answer: The capital of France is Paris.
+Scores: {'faithfulness': 1.0, 'answer_relevancy': 0.98, 'context_precision': 1.0, 'context_recall': 1.0}
+Scores reported successfully for request req_abc123
+
+Evaluating test case 2/3...
+Question: When was the Eiffel Tower built?
+Answer: The Eiffel Tower was constructed between 1887 and 1889.
+Scores: {'faithfulness': 1.0, 'answer_relevancy': 1.0, 'context_precision': 1.0, 'context_recall': 1.0}
+Scores reported successfully for request req_def456
+
+Evaluating test case 3/3...
+Question: What is photosynthesis?
+Answer: Photosynthesis is a process used by plants to convert light energy into chemical energy.
+Scores: {'faithfulness': 1.0, 'answer_relevancy': 0.95, 'context_precision': 0.92, 'context_recall': 0.88}
+Scores reported successfully for request req_ghi789
+
+==================================================
+EVALUATION SUMMARY
+==================================================
+faithfulness: 100.00%
+answer_relevancy: 97.67%
+context_precision: 97.33%
+context_recall: 96.00%
+
+View detailed results in Helicone: https://helicone.ai/requests
+```
+
+## Step 8: Analyze Results in Helicone
+
+<Steps>
+<Step title="View Requests">
+Navigate to [Helicone Requests](https://helicone.ai/requests) and filter by:
+- Property: `Feature = rag-qa`
+- Property: `Environment = evaluation`
+</Step>
+
+<Step title="Check Scores">
+Click on individual requests to see:
+- RAGAS evaluation scores
+- Request/response details
+- Context used
+- Latency and cost
+</Step>
+
+<Step title="Track Trends">
+Use the dashboard to:
+- Plot average scores over time
+- Identify degrading metrics
+- Compare different prompt versions
+- Find low-scoring requests for analysis
+</Step>
+</Steps>
+
+## Advanced: Automated Evaluation
+
+Run evaluations automatically on production traffic:
+
+```python
+import asyncio
+from datetime import datetime, timedelta
+
+async def evaluate_recent_requests():
+    """
+    Fetch recent RAG requests and evaluate them.
+    """
+    # Query recent requests from Helicone
+    response = requests.post(
+        "https://api.helicone.ai/v1/request/query-clickhouse",
+        headers={
+            "Authorization": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "filter": {
+                "request_response_rmt": {
+                    "request_created_at": {
+                        "gte": (datetime.now() - timedelta(hours=1)).isoformat() + "Z"
+                    },
+                    "properties": {
+                        "Feature": {"equals": "rag-qa"}
+                    }
+                }
+            },
+            "limit": 100
+        }
+    )
+    
+    requests_data = response.json()["data"]
+    
+    # Evaluate each request
+    for req in requests_data:
+        # Extract question, answer, contexts from request/response
+        # (This depends on your specific data structure)
+        question = extract_question(req)
+        answer = extract_answer(req)
+        contexts = extract_contexts(req)
+        ground_truth = get_ground_truth(question)  # Your logic
+        
+        # Run RAGAS evaluation
+        scores = evaluate_rag_response(question, answer, contexts, ground_truth)
+        
+        # Report to Helicone
+        report_scores_to_helicone(req["request_id"], scores)
+
+# Run every hour
+if __name__ == "__main__":
+    asyncio.run(evaluate_recent_requests())
+```
+
+## Best Practices
+
+<Tip>
+**Start with a golden dataset**: Create 20-50 high-quality test cases with ground truth answers
+</Tip>
+
+<Tip>
+**Run evaluations regularly**: Set up automated evaluations to catch regressions early
+</Tip>
+
+<Tip>
+**Track score trends**: Monitor how metrics change over time, especially after prompt changes
+</Tip>
+
+<Tip>
+**Investigate outliers**: Low-scoring responses often reveal edge cases or data quality issues
+</Tip>
+
+<Warning>
+RAGAS requires an LLM to calculate some metrics, which adds cost and latency. Consider evaluating a sample of production traffic rather than every request.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="RAGAS evaluation fails">
+Common issues:
+- Missing OpenAI API key for RAGAS's internal LLM calls
+- Invalid data format (ensure contexts is a list of strings)
+- Empty or None values in question/answer/contexts
+
+Check RAGAS logs for specific errors.
+</Accordion>
+
+<Accordion title="Scores not appearing in Helicone">
+Verify:
+- Request ID is correct (check response headers for `helicone-id`)
+- Scores are integers, not floats (multiply by 100)
+- API response shows 200 status code
+- Wait 10 minutes for score aggregation
+</Accordion>
+
+<Accordion title="Low faithfulness scores">
+Low faithfulness usually indicates:
+- The model is hallucinating information not in contexts
+- Contexts don't contain enough information to answer
+- Model is using external knowledge instead of contexts
+
+Review the actual responses to identify the issue.
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Scores Documentation" icon="star" href="/features/advanced-usage/scores">
+  Learn more about evaluation scores in Helicone
+</Card>
+
+<Card title="Sessions" icon="layer-group" href="/features/sessions">
+  Track multi-step RAG workflows
+</Card>
+
+<Card title="Custom Properties" icon="tag" href="/features/advanced-usage/custom-properties">
+  Segment evaluation by version, environment, or user type
+</Card>
+
+<Card title="Webhooks" icon="webhook" href="/features/webhooks">
+  Get notified when scores drop below thresholds
+</Card>
+</CardGroup>

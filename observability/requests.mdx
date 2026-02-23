@@ -1,0 +1,293 @@
+---
+title: "Request Logging"
+description: "Capture and analyze every LLM request with detailed metrics and metadata"
+---
+
+## Overview
+
+Helicone automatically logs every LLM request that flows through the platform, capturing detailed information about inputs, outputs, costs, latency, and metadata. View, filter, and analyze all requests in your dashboard.
+
+## What Data is Captured
+
+For each request, Helicone captures:
+
+### Request Data
+
+- **Prompt/Input**: Complete request body including messages, parameters, and system prompts
+- **Timestamp**: When the request was initiated
+- **Model**: Which LLM model was used (e.g., `gpt-4`, `claude-3-opus`)
+- **Provider**: The LLM provider (OpenAI, Anthropic, etc.)
+- **User ID**: Optional user identifier for user-level analytics
+- **Properties**: Custom metadata added via headers
+
+### Response Data
+
+- **Completion/Output**: Full response from the LLM
+- **Status**: Success (200), error (4xx/5xx), or rate limited
+- **Tokens**: Prompt tokens, completion tokens, and total tokens
+- **Cost**: Calculated cost in USD based on model pricing
+- **Latency**: Total request duration and time to first token
+
+### Metadata
+
+- **Request ID**: Unique identifier for the request
+- **Session ID**: Optional session grouping identifier
+- **Trace ID**: For distributed tracing across multiple requests
+- **Cache Status**: Whether the response was cached
+- **Model Version**: Specific model version used
+
+## Viewing Requests
+
+Access your requests in the Helicone dashboard:
+
+<Steps>
+  <Step title="Navigate to Requests">
+    Go to [helicone.ai/requests](https://helicone.ai/requests) in your dashboard
+  </Step>
+  <Step title="View Request List">
+    See all requests in a table with key metrics: timestamp, model, cost, latency, status
+  </Step>
+  <Step title="Click a Request">
+    Click any request to see full details including input/output, metadata, and metrics
+  </Step>
+</Steps>
+
+## Request Details Page
+
+Click any request to see comprehensive details:
+
+<Tabs>
+  <Tab title="Overview">
+    - Request and response bodies (formatted JSON)
+    - Model and provider information
+    - Cost breakdown
+    - Latency metrics
+    - Status and error messages
+  </Tab>
+  <Tab title="Metadata">
+    - Request ID
+    - Session ID (if part of a session)
+    - Trace ID (if part of a trace)
+    - User ID
+    - Custom properties
+    - Timestamps
+  </Tab>
+  <Tab title="Scores">
+    - Evaluation scores (if configured)
+    - Feedback ratings
+    - Custom scoring metrics
+  </Tab>
+</Tabs>
+
+## Filtering Requests
+
+Use powerful filters to find specific requests:
+
+### Filter Options
+
+```typescript
+// Example filter query via API
+const response = await fetch('https://api.helicone.ai/v1/request/query', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    filter: {
+      left: {
+        request_response_rmt: {
+          model: {
+            equals: "gpt-4"
+          }
+        }
+      },
+      operator: "and",
+      right: {
+        request_response_rmt: {
+          status: {
+            equals: 200
+          }
+        }
+      }
+    },
+    limit: 100,
+    offset: 0,
+    sort: {
+      created_at: "desc"
+    }
+  })
+});
+```
+
+### Common Filters
+
+<AccordionGroup>
+  <Accordion title="By Model">
+    Filter by specific models like `gpt-4`, `claude-3-opus`, or `gpt-3.5-turbo`
+  </Accordion>
+  <Accordion title="By Status">
+    Filter by success (200), client errors (4xx), or server errors (5xx)
+  </Accordion>
+  <Accordion title="By User">
+    Filter requests by user ID to see a specific user's activity
+  </Accordion>
+  <Accordion title="By Cost">
+    Filter expensive requests above a certain cost threshold
+  </Accordion>
+  <Accordion title="By Latency">
+    Find slow requests exceeding a latency threshold
+  </Accordion>
+  <Accordion title="By Custom Properties">
+    Filter by any custom property you've added to requests
+  </Accordion>
+  <Accordion title="By Date Range">
+    Filter requests within a specific time range
+  </Accordion>
+</AccordionGroup>
+
+## Logging Requests
+
+Requests are logged automatically when you:
+
+### Option 1: Use the Proxy
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",  # Use Helicone proxy
+    default_headers={
+        "Helicone-Auth": "Bearer YOUR_HELICONE_KEY"
+    }
+)
+
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+# Request is automatically logged
+```
+
+### Option 2: Add Headers to Direct API Calls
+
+```python
+import requests
+
+response = requests.post(
+    "https://api.openai.com/v1/chat/completions",
+    headers={
+        "Authorization": "Bearer YOUR_OPENAI_KEY",
+        "Helicone-Auth": "Bearer YOUR_HELICONE_KEY",
+        "Content-Type": "application/json"
+    },
+    json={
+        "model": "gpt-4",
+        "messages": [{"role": "user", "content": "Hello!"}]
+    }
+)
+# Request is logged by adding Helicone-Auth header
+```
+
+### Option 3: Async Logging
+
+```typescript
+// For requests that don't go through Helicone proxy
+await fetch('https://api.helicone.ai/v1/trace/custom/log', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_HELICONE_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    providerRequest: {
+      url: "https://api.openai.com/v1/chat/completions",
+      json: {
+        model: "gpt-4",
+        messages: [{ role: "user", content: "Hello!" }]
+      },
+      meta: { Helicone-Auth: "Bearer YOUR_HELICONE_KEY" }
+    },
+    providerResponse: {
+      json: response,
+      status: 200,
+      headers: {}
+    },
+    timing: {
+      startTime: { seconds: startTime, nanos: 0 },
+      endTime: { seconds: endTime, nanos: 0 }
+    }
+  })
+});
+```
+
+## Request API
+
+<CardGroup cols={2}>
+  <Card title="Query Requests" icon="magnifying-glass" href="/api/requests/query">
+    Fetch requests with filters and pagination
+  </Card>
+  <Card title="Get Request by ID" icon="file" href="/api/requests/get">
+    Retrieve a specific request's details
+  </Card>
+  <Card title="Add Feedback" icon="thumbs-up" href="/api/requests/feedback">
+    Rate requests with thumbs up/down
+  </Card>
+  <Card title="Add Properties" icon="tag" href="/api/requests/properties">
+    Add custom properties to existing requests
+  </Card>
+</CardGroup>
+
+## Advanced Features
+
+### Request Body Storage
+
+By default, Helicone stores complete request and response bodies. You can:
+
+- **Omit request bodies**: Add `Helicone-Omit-Request: true` header
+- **Omit response bodies**: Add `Helicone-Omit-Response: true` header
+
+```python
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Sensitive data"}],
+    extra_headers={
+        "Helicone-Omit-Request": "true"  # Don't store request body
+    }
+)
+```
+
+### Feedback & Ratings
+
+Add thumbs up/down ratings to requests:
+
+```typescript
+await fetch(`https://api.helicone.ai/v1/request/${requestId}/feedback`, {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    rating: true  // true = thumbs up, false = thumbs down
+  })
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Group into Sessions" icon="layer-group" href="/observability/sessions">
+    Track multi-turn conversations
+  </Card>
+  <Card title="Add Custom Properties" icon="tags" href="/observability/custom-properties">
+    Enrich requests with metadata
+  </Card>
+  <Card title="Trace Workflows" icon="diagram-project" href="/observability/traces">
+    Visualize complex request flows
+  </Card>
+  <Card title="Track Users" icon="users" href="/observability/user-metrics">
+    Monitor per-user analytics
+  </Card>
+</CardGroup>

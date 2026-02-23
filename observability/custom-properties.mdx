@@ -1,0 +1,409 @@
+---
+title: "Custom Properties"
+description: "Add custom metadata to LLM requests for powerful segmentation, filtering, and analysis"
+---
+
+## What are Custom Properties?
+
+Custom properties let you attach arbitrary metadata to your LLM requests. Use them to segment, filter, and analyze requests based on your application's specific needs.
+
+## Why Use Custom Properties?
+
+<CardGroup cols={2}>
+  <Card title="Segmentation" icon="object-group">
+    Group requests by feature, environment, or any custom dimension
+  </Card>
+  <Card title="Filtering" icon="filter">
+    Quickly find requests matching specific criteria
+  </Card>
+  <Card title="Analytics" icon="chart-bar">
+    Analyze costs and performance by custom segments
+  </Card>
+  <Card title="Debugging" icon="bug">
+    Add context that helps debug issues later
+  </Card>
+</CardGroup>
+
+## Adding Properties via Headers
+
+Add properties using the `Helicone-Property-{Key}` header pattern:
+
+<ParamField header="Helicone-Property-{Key}" type="string">
+  Add a custom property with any key name. Replace `{Key}` with your property name.
+  
+  Examples:
+  - `Helicone-Property-Environment: production`
+  - `Helicone-Property-Feature: chatbot`
+  - `Helicone-Property-User-Tier: premium`
+</ParamField>
+
+## Basic Example
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": "Bearer YOUR_HELICONE_KEY"
+    }
+)
+
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_headers={
+        # Add custom properties
+        "Helicone-Property-Environment": "production",
+        "Helicone-Property-Feature": "customer-support",
+        "Helicone-Property-Conversation-Type": "sales",
+        "Helicone-Property-Priority": "high"
+    }
+)
+```
+
+```typescript TypeScript
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://oai.helicone.ai/v1',
+  defaultHeaders: {
+    'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`
+  }
+});
+
+const response = await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Hello!' }]
+  },
+  {
+    headers: {
+      // Add custom properties
+      'Helicone-Property-Environment': 'production',
+      'Helicone-Property-Feature': 'customer-support',
+      'Helicone-Property-Conversation-Type': 'sales',
+      'Helicone-Property-Priority': 'high'
+    }
+  }
+);
+```
+
+```bash cURL
+curl https://oai.helicone.ai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_OPENAI_KEY" \
+  -H "Helicone-Auth: Bearer YOUR_HELICONE_KEY" \
+  -H "Helicone-Property-Environment: production" \
+  -H "Helicone-Property-Feature: customer-support" \
+  -H "Helicone-Property-Conversation-Type: sales" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+</CodeGroup>
+
+## Common Use Cases
+
+### Environment Tracking
+
+Track which environment requests come from:
+
+```python
+extra_headers={
+    "Helicone-Property-Environment": "production",  # or "staging", "development"
+    "Helicone-Property-Version": "v2.1.0"
+}
+```
+
+### Feature Segmentation
+
+Segment by product feature or module:
+
+```typescript
+headers: {
+  'Helicone-Property-Feature': 'code-generation',  // or 'chat', 'summarization'
+  'Helicone-Property-Module': 'backend-api',
+  'Helicone-Property-Component': 'document-processor'
+}
+```
+
+### User Context
+
+Add user-related metadata (combine with `Helicone-User-Id`):
+
+```python
+extra_headers={
+    "Helicone-User-Id": user_id,
+    "Helicone-Property-User-Tier": "premium",  # or "free", "enterprise"
+    "Helicone-Property-User-Segment": "power-user",
+    "Helicone-Property-Organization": org_id
+}
+```
+
+### Experiment Tracking
+
+Track A/B tests and experiments:
+
+```typescript
+headers: {
+  'Helicone-Property-Experiment': 'prompt-v2-test',
+  'Helicone-Property-Variant': 'control',  // or 'variant-a', 'variant-b'
+  'Helicone-Property-Cohort': 'early-adopters'
+}
+```
+
+### Request Classification
+
+Classify requests by type or intent:
+
+```python
+extra_headers={
+    "Helicone-Property-Request-Type": "question-answering",
+    "Helicone-Property-Topic": "technical-support",
+    "Helicone-Property-Language": "en"
+}
+```
+
+### Business Context
+
+Add business-relevant metadata:
+
+```typescript
+headers: {
+  'Helicone-Property-Customer-Type': 'enterprise',
+  'Helicone-Property-Contract': 'annual',
+  'Helicone-Property-Industry': 'healthcare',
+  'Helicone-Property-Region': 'us-west'
+}
+```
+
+## Adding Properties After Request
+
+Add or update properties on existing requests via API:
+
+```typescript
+// Add property to an existing request
+await fetch(`https://api.helicone.ai/v1/request/${requestId}/property`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    key: 'Review-Status',
+    value: 'approved'
+  })
+});
+```
+
+This is useful for:
+- Adding properties based on request outcomes
+- Updating classification after manual review
+- Tagging requests retroactively
+
+## Filtering by Properties
+
+Use properties to filter requests in the dashboard or via API:
+
+### Dashboard Filtering
+
+1. Go to Requests page
+2. Click **Add Filter**
+3. Select **Property**
+4. Choose your custom property
+5. Set the condition (equals, contains, etc.)
+
+### API Filtering
+
+```typescript
+const response = await fetch('https://api.helicone.ai/v1/request/query', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    filter: {
+      left: {
+        properties: {
+          Environment: {
+            equals: "production"
+          }
+        }
+      },
+      operator: "and",
+      right: {
+        properties: {
+          Feature: {
+            equals: "chatbot"
+          }
+        }
+      }
+    },
+    limit: 100
+  })
+});
+```
+
+## Property-Based Analytics
+
+Analyze costs and performance by properties:
+
+### Cost per Feature
+
+```sql
+-- In Helicone dashboard or via SQL export
+SELECT 
+  properties['Feature'] as feature,
+  COUNT(*) as request_count,
+  SUM(cost) as total_cost,
+  AVG(latency) as avg_latency
+FROM requests
+WHERE timestamp > NOW() - INTERVAL '7 days'
+GROUP BY properties['Feature']
+ORDER BY total_cost DESC;
+```
+
+### Environment Comparison
+
+Compare staging vs production:
+
+```python
+# Filter production requests
+production_requests = query_requests(
+    filter={"properties": {"Environment": {"equals": "production"}}}
+)
+
+# Filter staging requests
+staging_requests = query_requests(
+    filter={"properties": {"Environment": {"equals": "staging"}}}
+)
+
+# Compare metrics
+print(f"Production cost: ${sum(r.cost for r in production_requests)}")
+print(f"Staging cost: ${sum(r.cost for r in staging_requests)}")
+```
+
+## Property Naming Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Consistent Naming">
+    Establish naming conventions for your team:
+    - Use PascalCase or kebab-case consistently
+    - Good: `User-Tier`, `Feature`, `Environment`
+    - Bad: `userTier`, `FEATURE`, `env`
+  </Accordion>
+  
+  <Accordion title="Keep Values Consistent">
+    Use the same values across your application:
+    - Good: Always use `production`, `staging`, `development`
+    - Bad: Mix of `prod`, `production`, `PROD`
+  </Accordion>
+  
+  <Accordion title="Use Descriptive Names">
+    Make property names self-explanatory:
+    - Good: `Conversation-Type`, `User-Segment`
+    - Bad: `Type`, `Segment` (too generic)
+  </Accordion>
+  
+  <Accordion title="Avoid Sensitive Data">
+    Don't include PII or sensitive information in properties:
+    - Good: `User-Id: uuid-123`, `Organization-Id: org-456`
+    - Bad: `User-Email: user@example.com`, `Credit-Card: 1234`
+  </Accordion>
+  
+  <Accordion title="Limit Property Count">
+    Add 5-10 meaningful properties per request, not dozens. Too many properties make analysis harder.
+  </Accordion>
+</AccordionGroup>
+
+## Property Examples by Industry
+
+<Tabs>
+  <Tab title="SaaS Products">
+    ```python
+    extra_headers={
+        "Helicone-Property-Feature": "document-chat",
+        "Helicone-Property-Subscription-Tier": "professional",
+        "Helicone-Property-Organization-Size": "50-200",
+        "Helicone-Property-Use-Case": "customer-support"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="E-commerce">
+    ```typescript
+    headers: {
+      'Helicone-Property-Feature': 'product-recommendations',
+      'Helicone-Property-Category': 'electronics',
+      'Helicone-Property-Customer-Segment': 'returning',
+      'Helicone-Property-Cart-Value': 'high'
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Healthcare">
+    ```python
+    extra_headers={
+        "Helicone-Property-Feature": "symptom-checker",
+        "Helicone-Property-Specialty": "cardiology",
+        "Helicone-Property-Patient-Type": "existing",
+        "Helicone-Property-Urgency": "routine"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Education">
+    ```typescript
+    headers: {
+      'Helicone-Property-Feature': 'homework-help',
+      'Helicone-Property-Subject': 'mathematics',
+      'Helicone-Property-Grade-Level': 'high-school',
+      'Helicone-Property-Topic': 'calculus'
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Automatic Properties
+
+Some Helicone headers are automatically converted to properties:
+
+- `Helicone-Session-Id` → Property: `Helicone-Session-Id`
+- `Helicone-Session-Name` → Property: `Helicone-Session-Name`
+- `Helicone-Prompt-Id` → Property: `Helicone-Prompt-Id`
+- `Helicone-Cache-Enabled` → Property: `Helicone-Cache-Enabled`
+
+You can filter by these properties just like custom ones.
+
+## Property Limits
+
+<Note>
+- **Property Key Length**: Max 100 characters
+- **Property Value Length**: Max 500 characters
+- **Properties per Request**: No hard limit, but keep it reasonable (5-10)
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Session Tracking" icon="layer-group" href="/observability/sessions">
+    Group related requests with sessions
+  </Card>
+  <Card title="User Metrics" icon="users" href="/observability/user-metrics">
+    Track per-user analytics
+  </Card>
+  <Card title="Request Logging" icon="list" href="/observability/requests">
+    Learn about request data capture
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/requests/properties">
+    See property API documentation
+  </Card>
+</CardGroup>

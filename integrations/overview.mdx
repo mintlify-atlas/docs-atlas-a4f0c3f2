@@ -1,0 +1,229 @@
+---
+title: "Integration Overview"
+description: "Connect Helicone with your favorite LLM providers and frameworks"
+icon: "grid"
+---
+
+Helicone supports 100+ LLM providers and integrates seamlessly with popular AI frameworks. Choose the integration method that works best for your setup.
+
+## Supported Providers
+
+Helicone works with all major LLM providers:
+
+<CardGroup cols={3}>
+  <Card title="OpenAI" icon="openai" href="/integrations/openai">
+    GPT-4, GPT-3.5, and more
+  </Card>
+  <Card title="Anthropic" icon="brain" href="/integrations/anthropic">
+    Claude models
+  </Card>
+  <Card title="Azure OpenAI" icon="microsoft">
+    Enterprise OpenAI deployment
+  </Card>
+  <Card title="Google Vertex AI" icon="google">
+    Gemini and PaLM models
+  </Card>
+  <Card title="AWS Bedrock" icon="aws">
+    Multiple model providers
+  </Card>
+  <Card title="Together AI" icon="layer-group">
+    Open source models
+  </Card>
+</CardGroup>
+
+## Integration Methods
+
+### Proxy Integration
+
+The simplest way to integrate. Just change your API base URL:
+
+<CodeGroup>
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+```
+
+```typescript TypeScript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+```
+</CodeGroup>
+
+**Benefits:**
+- No code changes beyond configuration
+- Works with any SDK
+- Real-time logging
+- Full request/response capture
+
+### Async Integration
+
+Log requests asynchronously without affecting latency:
+
+<CodeGroup>
+```typescript TypeScript
+import { HeliconeAsyncLogger } from '@helicone/helicone';
+import { OpenAI } from 'openai';
+
+const logger = new HeliconeAsyncLogger({
+  apiKey: process.env.HELICONE_API_KEY,
+  providers: {
+    openAI: OpenAI,
+  },
+});
+logger.init();
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Use OpenAI normally - logging happens in the background
+```
+</CodeGroup>
+
+**Benefits:**
+- Zero latency impact
+- Uses your existing provider keys
+- Background processing
+
+### Gateway Integration
+
+Route through multiple providers with failover and load balancing:
+
+```typescript
+const openai = new OpenAI({
+  apiKey: process.env.HELICONE_API_KEY,
+  baseURL: "https://ai-gateway.helicone.ai",
+});
+
+// Use multiple models with automatic fallback
+const response = await openai.chat.completions.create({
+  model: "claude-3-7-sonnet-20250219/anthropic,gpt-4o-mini",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+**Benefits:**
+- Automatic failover between providers
+- Load balancing
+- Single API key for all providers
+- Cost optimization
+
+## Framework Integrations
+
+Helicone integrates with popular AI frameworks:
+
+<CardGroup cols={2}>
+  <Card title="LangChain" icon="link" href="/integrations/langchain">
+    Full chain observability
+  </Card>
+  <Card title="Vercel AI SDK" icon="code" href="/integrations/vercel-ai-sdk">
+    Streaming and edge support
+  </Card>
+  <Card title="LlamaIndex" icon="database">
+    RAG pipeline tracking
+  </Card>
+  <Card title="Instructor" icon="graduation-cap">
+    Structured output logging
+  </Card>
+</CardGroup>
+
+## Quick Start by Provider
+
+<AccordionGroup>
+  <Accordion title="OpenAI" icon="openai">
+    ```python
+    from openai import OpenAI
+
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url="https://oai.helicone.ai/v1",
+        default_headers={
+            "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        },
+    )
+    ```
+    [Full OpenAI guide →](/integrations/openai)
+  </Accordion>
+
+  <Accordion title="Anthropic" icon="brain">
+    ```python
+    from anthropic import Anthropic
+
+    client = Anthropic(
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+        base_url="https://anthropic.helicone.ai",
+        default_headers={
+            "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        },
+    )
+    ```
+    [Full Anthropic guide →](/integrations/anthropic)
+  </Accordion>
+
+  <Accordion title="Azure OpenAI" icon="microsoft">
+    ```python
+    from openai import AzureOpenAI
+
+    client = AzureOpenAI(
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        base_url="https://oai.helicone.ai/v1",
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_version="2024-02-01",
+        default_headers={
+            "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+            "Helicone-Target-URL": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        },
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Getting Your API Key
+
+To use any integration method, you'll need a Helicone API key:
+
+<Steps>
+  <Step title="Sign up">
+    Create an account at [helicone.ai](https://helicone.ai)
+  </Step>
+  <Step title="Generate API key">
+    Go to Settings > API Keys and create a new key
+  </Step>
+  <Step title="Store securely">
+    Add to your environment variables:
+    ```bash
+    export HELICONE_API_KEY="sk-helicone-..."
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="OpenAI Integration" icon="openai" href="/integrations/openai">
+    Complete setup guide for OpenAI
+  </Card>
+  <Card title="Anthropic Integration" icon="brain" href="/integrations/anthropic">
+    Integrate with Claude models
+  </Card>
+  <Card title="Custom Headers" icon="gear">
+    Add metadata and properties
+  </Card>
+  <Card title="Caching" icon="database">
+    Enable request caching
+  </Card>
+</CardGroup>

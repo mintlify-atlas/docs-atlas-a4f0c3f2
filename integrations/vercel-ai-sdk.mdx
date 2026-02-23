@@ -1,0 +1,426 @@
+---
+title: "Vercel AI SDK Integration"
+description: "Integrate Helicone with Vercel AI SDK for streaming and edge support"
+icon: "code"
+---
+
+Integrate Helicone with Vercel AI SDK to track and monitor your AI applications with streaming support and edge runtime compatibility.
+
+## Quick Start
+
+Integrate Helicone with Vercel AI SDK by configuring the provider with Helicone's base URL:
+
+<CodeGroup>
+```typescript Next.js App Router
+import { openai } from '@ai-sdk/openai';
+import { streamText } from 'ai';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  // Configure OpenAI provider with Helicone
+  const result = await streamText({
+    model: openai('gpt-4o-mini', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      },
+    }),
+    messages,
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+```typescript Next.js Pages Router
+import { Configuration, OpenAIApi } from 'openai-edge';
+import { OpenAIStream, StreamingTextResponse } from 'ai';
+
+const config = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+  basePath: 'https://oai.helicone.ai/v1',
+  defaultHeaders: {
+    'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+
+const openai = new OpenAIApi(config);
+
+export default async function handler(req: Request) {
+  const { messages } = await req.json();
+
+  const response = await openai.createChatCompletion({
+    model: 'gpt-4o-mini',
+    stream: true,
+    messages,
+  });
+
+  const stream = OpenAIStream(response);
+  return new StreamingTextResponse(stream);
+}
+```
+
+```typescript AWS Bedrock
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { generateText } from 'ai';
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const bedrock = createAmazonBedrock({
+    region: process.env.AWS_REGION ?? '',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
+    baseURL: `https://bedrock.helicone.ai/v1/${process.env.AWS_REGION}`,
+    headers: {
+      'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+    },
+  });
+
+  const { text } = await generateText({
+    model: bedrock('anthropic.claude-3-sonnet-20240229-v1:0'),
+    messages,
+  });
+
+  return Response.json({ text });
+}
+```
+</CodeGroup>
+
+## Installation
+
+```bash
+npm install ai @ai-sdk/openai
+```
+
+## Configuration
+
+### Environment Variables
+
+Set up your environment:
+
+```bash .env.local
+OPENAI_API_KEY=sk-...
+HELICONE_API_KEY=sk-helicone-...
+```
+
+### Provider Configuration
+
+Configure different providers:
+
+<Tabs>
+  <Tab title="OpenAI">
+    ```typescript
+    import { openai } from '@ai-sdk/openai';
+
+    const model = openai('gpt-4o-mini', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="Anthropic">
+    ```typescript
+    import { anthropic } from '@ai-sdk/anthropic';
+
+    const model = anthropic('claude-sonnet-4-20250514', {
+      baseURL: 'https://anthropic.helicone.ai',
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="Azure OpenAI">
+    ```typescript
+    import { azure } from '@ai-sdk/azure';
+
+    const model = azure('gpt-4', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      apiKey: process.env.AZURE_OPENAI_API_KEY,
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+        'Helicone-Target-URL': process.env.AZURE_OPENAI_ENDPOINT,
+      },
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Streaming Support
+
+Helicone fully supports streaming with Vercel AI SDK:
+
+### Text Streaming
+
+```typescript
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = await streamText({
+    model: openai('gpt-4o-mini', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      },
+    }),
+    messages,
+  });
+
+  // Stream response to client
+  return result.toDataStreamResponse();
+}
+```
+
+### Object Streaming
+
+```typescript
+import { streamObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+const schema = z.object({
+  recipe: z.object({
+    name: z.string(),
+    ingredients: z.array(z.string()),
+    steps: z.array(z.string()),
+  }),
+});
+
+export async function POST(req: Request) {
+  const result = await streamObject({
+    model: openai('gpt-4o-mini', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      },
+    }),
+    schema,
+    prompt: 'Generate a recipe for chocolate chip cookies',
+  });
+
+  return result.toTextStreamResponse();
+}
+```
+
+## Client-Side Integration
+
+Use Helicone with client-side Vercel AI SDK hooks:
+
+```typescript app/page.tsx
+'use client';
+
+import { useChat } from 'ai/react';
+
+export default function Chat() {
+  const { messages, input, handleInputChange, handleSubmit } = useChat({
+    api: '/api/chat', // Points to your API route with Helicone
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.role}: {message.content}
+        </div>
+      ))}
+      <form onSubmit={handleSubmit}>
+        <input value={input} onChange={handleInputChange} />
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  );
+}
+```
+
+## Advanced Features
+
+### Session Tracking
+
+Track multi-turn conversations:
+
+```typescript
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { v4 as uuidv4 } from 'uuid';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+  const sessionId = uuidv4();
+
+  const result = await streamText({
+    model: openai('gpt-4o-mini', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+        'Helicone-Session-Id': sessionId,
+        'Helicone-Session-Name': 'Chat Application',
+        'Helicone-Session-Path': '/api/chat',
+      },
+    }),
+    messages,
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+### User Tracking
+
+Track requests by user:
+
+```typescript
+const result = await streamText({
+  model: openai('gpt-4o-mini', {
+    baseURL: 'https://oai.helicone.ai/v1',
+    headers: {
+      'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      'Helicone-User-Id': 'user-123',
+    },
+  }),
+  messages,
+});
+```
+
+### Custom Properties
+
+Add metadata to your requests:
+
+```typescript
+const result = await streamText({
+  model: openai('gpt-4o-mini', {
+    baseURL: 'https://oai.helicone.ai/v1',
+    headers: {
+      'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      'Helicone-Property-Environment': 'production',
+      'Helicone-Property-App': 'chatbot',
+      'Helicone-Property-Version': 'v1.2.0',
+    },
+  }),
+  messages,
+});
+```
+
+### Tool Calls
+
+Track tool usage:
+
+```typescript
+import { streamText, tool } from 'ai';
+import { z } from 'zod';
+
+const result = await streamText({
+  model: openai('gpt-4o-mini', {
+    baseURL: 'https://oai.helicone.ai/v1',
+    headers: {
+      'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+    },
+  }),
+  messages,
+  tools: {
+    weather: tool({
+      description: 'Get the weather in a location',
+      parameters: z.object({
+        location: z.string().describe('The location to get the weather for'),
+      }),
+      execute: async ({ location }) => ({
+        location,
+        temperature: 72,
+      }),
+    }),
+  },
+});
+
+// Helicone tracks tool calls automatically
+```
+
+## Edge Runtime Support
+
+Helicone works seamlessly with Edge Runtime:
+
+```typescript app/api/chat/route.ts
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+export const runtime = 'edge';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = await streamText({
+    model: openai('gpt-4o-mini', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      headers: {
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      },
+    }),
+    messages,
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Headers not being sent" icon="code">
+    Make sure to pass headers in the provider configuration:
+    
+    ```typescript
+    const model = openai('gpt-4o-mini', {
+      baseURL: 'https://oai.helicone.ai/v1',
+      headers: {  // ✓ Correct
+        'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
+      },
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Streaming not working" icon="water">
+    Ensure you're using `.toDataStreamResponse()` or `.toTextStreamResponse()`:
+    
+    ```typescript
+    const result = await streamText(...);
+    return result.toDataStreamResponse(); // ✓ Correct
+    ```
+  </Accordion>
+
+  <Accordion title="Edge runtime errors" icon="bolt">
+    Helicone is fully compatible with Edge runtime. If you encounter issues:
+    
+    1. Verify environment variables are set in your hosting platform
+    2. Check that `runtime = 'edge'` is exported
+    3. Ensure you're using supported dependencies
+  </Accordion>
+</AccordionGroup>
+
+## Examples from Source
+
+See real integration examples:
+
+- [Vercel AI SDK with Bedrock](https://github.com/Helicone/helicone/blob/main/examples/vercel-ai-sdk-example/src/app/api/chat/route.ts)
+- [Streaming chat application](https://github.com/Helicone/helicone/tree/main/examples/vercel-ai-sdk-example)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="link">
+    Track multi-turn conversations
+  </Card>
+  <Card title="Custom Properties" icon="tag">
+    Add metadata to requests
+  </Card>
+  <Card title="User Analytics" icon="users">
+    Analyze user behavior
+  </Card>
+  <Card title="Dashboard" icon="chart-line">
+    Monitor streaming performance
+  </Card>
+</CardGroup>

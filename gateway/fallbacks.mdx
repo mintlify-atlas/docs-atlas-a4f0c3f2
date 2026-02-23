@@ -1,0 +1,353 @@
+---
+title: "Automatic Fallbacks"
+sidebarTitle: "Fallbacks"
+description: "Build resilient AI applications with automatic provider failover and retry strategies"
+---
+
+The AI Gateway automatically handles provider failures by instantly switching to backup providers. Your application stays online even when providers go down, hit rate limits, or experience errors.
+
+## Why Fallbacks Matter
+
+<CardGroup cols={2}>
+  <Card title="Provider Downtime" icon="circle-exclamation">
+    OpenAI outages took down ChatGPT, Cursor, and thousands of apps in 2024
+  </Card>
+  <Card title="Rate Limiting" icon="gauge-high">
+    Hit your quota during peak hours and block all users
+  </Card>
+  <Card title="Regional Issues" icon="globe">
+    Provider performance varies by geography and time of day
+  </Card>
+  <Card title="Cost Optimization" icon="dollar-sign">
+    Route to cheaper providers first, with expensive backups
+  </Card>
+</CardGroup>
+
+## How Fallbacks Work
+
+The gateway automatically retries failed requests with alternative providers:
+
+```typescript
+// Specify fallback chain with comma-separated models
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini/openai,gpt-4o-mini/azure,gpt-4o-mini",
+  messages: [{ role: "user", content: "Hello!" }]
+});
+```
+
+**What happens:**
+1. Tries OpenAI first
+2. If OpenAI fails → Instantly tries Azure
+3. If Azure fails → Tries all other available providers
+4. Returns first successful response
+
+**Total added latency:** ~50ms per failover (near-instant)
+
+## Automatic Failover Triggers
+
+The gateway automatically fails over when it encounters:
+
+| Error Code | Trigger | Example |
+|------------|---------|----------|
+| **429** | Rate limit exceeded | Provider quota reached |
+| **401** | Authentication failed | Invalid API key |
+| **408** | Request timeout | Provider taking too long |
+| **500-599** | Server errors | Provider infrastructure issues |
+| **400** | Context length exceeded | Prompt too long for provider |
+
+<Note>
+  The gateway intelligently handles errors. Some 400 errors (like invalid model format) won't trigger fallback since they'd fail on all providers.
+</Note>
+
+## Fallback Strategies
+
+### Default Automatic Routing
+
+No configuration needed - the gateway automatically finds all providers:
+
+```typescript
+model: "claude-sonnet-4"
+// Automatically tries: Anthropic → Bedrock → Vertex → All others
+```
+
+**Best for:** Most production use cases. Handles failures automatically.
+
+### Explicit Provider Chain
+
+Specify exact providers and order:
+
+```typescript
+model: "claude-sonnet-4/anthropic,claude-sonnet-4/bedrock"
+// Tries: Anthropic → Bedrock → Stops
+```
+
+**Best for:** When you want control over which providers are used.
+
+### Open-Ended Chain
+
+Start with specific providers, then try all others:
+
+```typescript
+model: "gpt-4o-mini/azure,gpt-4o-mini"
+// Tries: Azure → All other GPT-4o-mini providers
+```
+
+**Best for:** Prioritizing specific providers (e.g., using your credits) while keeping full redundancy.
+
+### BYOK with Credit Fallback
+
+Your provider keys automatically fall back to Helicone's managed keys:
+
+```typescript
+// Add your OpenAI key in Provider Settings
+model: "gpt-4o-mini"
+// Tries: Your OpenAI key → Helicone's keys → Other providers
+```
+
+**Best for:** Using your provider credits with automatic backup.
+
+## Real-World Examples
+
+### Production Reliability
+
+Maximize uptime with multi-provider redundancy:
+
+```typescript
+const client = new OpenAI({
+  baseURL: "https://ai-gateway.helicone.ai",
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+const response = await client.chat.completions.create({
+  // Try Anthropic, then Bedrock, then all others
+  model: "claude-sonnet-4/anthropic,claude-sonnet-4/bedrock,claude-sonnet-4",
+  messages: [
+    { role: "user", content: "Analyze this customer feedback" }
+  ],
+});
+```
+
+**Result:** Your app stays online even if Anthropic and Bedrock both go down.
+
+### Cost Optimization
+
+Use cheaper providers first, with premium backups:
+
+```typescript
+const response = await client.chat.completions.create({
+  // Start with cheapest, escalate if needed
+  model: "gpt-4o-mini/azure,gpt-4o-mini/openai",
+  messages: [{ role: "user", content: query }],
+});
+```
+
+**Result:** Saves money by using Azure (your credits), falls back to OpenAI if Azure is down.
+
+### Regional Compliance
+
+Prioritize EU providers for GDPR compliance:
+
+```typescript
+const response = await client.chat.completions.create({
+  // EU region first, then US regions as backup
+  model: "gpt-4o/azure/eu-deployment,gpt-4o/openai",
+  messages: [{ role: "user", content: euUserQuery }],
+});
+```
+
+**Result:** Uses EU deployment for EU users, fails over to US if EU region has issues.
+
+### Mixed Model Fallbacks
+
+Fall back to different models if preferred model fails:
+
+```typescript
+const response = await client.chat.completions.create({
+  // Try GPT-4, fall back to Claude if needed
+  model: "gpt-4o,claude-sonnet-4",
+  messages: [{ role: "user", content: "Complex reasoning task" }],
+});
+```
+
+**Result:** Tries GPT-4 first, uses Claude if GPT-4 is unavailable.
+
+### Avoid Problematic Providers
+
+Exclude providers experiencing issues:
+
+```typescript
+const response = await client.chat.completions.create({
+  // Use any provider EXCEPT the ones having issues
+  model: "!openai,!azure,gpt-4o-mini",
+  messages: [{ role: "user", content: query }],
+});
+```
+
+**Result:** Routes around providers with known issues while maintaining full redundancy.
+
+## Error Handling
+
+### Successful Fallback
+
+When a fallback succeeds, the response includes metadata:
+
+```typescript
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini/openai,gpt-4o-mini/azure",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+// Check which provider was used in Helicone dashboard
+// Response header: helicone-fallback-index: 1 (if Azure was used)
+```
+
+View fallback details in your [Helicone dashboard](https://us.helicone.ai/requests):
+- Which provider was tried first
+- Why it failed
+- Which provider ultimately succeeded
+- Total latency including fallback time
+
+### All Providers Failed
+
+If all providers in your chain fail, you get a detailed error:
+
+```json
+{
+  "error": {
+    "code": "all_attempts_failed",
+    "message": "All attempts failed",
+    "details": [
+      {
+        "source": "gpt-4o-mini/openai",
+        "statusCode": 429,
+        "message": "Rate limit exceeded",
+        "type": "rate_limited"
+      },
+      {
+        "source": "gpt-4o-mini/azure",
+        "statusCode": 500,
+        "message": "Internal server error",
+        "type": "request_failed"
+      }
+    ]
+  }
+}
+```
+
+<Warning>
+  If all providers fail, the gateway returns the most actionable error (e.g., authentication > rate limit > server error).
+</Warning>
+
+## Fallback Best Practices
+
+### 1. Start with Automatic Routing
+
+Let the gateway handle everything:
+
+```typescript
+// ✅ Simple and reliable
+model: "claude-sonnet-4"
+```
+
+Only add explicit fallbacks if you need specific control.
+
+### 2. Use Open-Ended Chains
+
+Always include a final catch-all:
+
+```typescript
+// ✅ Good - Falls back to all providers
+model: "gpt-4o-mini/azure,gpt-4o-mini"
+
+// ❌ Risky - Only tries two providers
+model: "gpt-4o-mini/azure,gpt-4o-mini/openai"
+```
+
+### 3. Monitor Fallback Rates
+
+Check your [Helicone dashboard](https://us.helicone.ai/requests) regularly:
+- High fallback rates indicate provider issues
+- Adjust your provider priorities based on reliability
+- Consider excluding consistently failing providers
+
+### 4. Test Your Fallback Chain
+
+Verify your fallback logic works:
+
+```typescript
+// Test by forcing a provider that will fail
+model: "invalid-provider,gpt-4o-mini"
+// Should successfully fall back to gpt-4o-mini
+```
+
+### 5. Combine with Rate Limiting
+
+Use Helicone's custom rate limits to prevent provider quota exhaustion:
+
+```typescript
+const client = new OpenAI({
+  baseURL: "https://ai-gateway.helicone.ai",
+  apiKey: process.env.HELICONE_API_KEY,
+  defaultHeaders: {
+    "Helicone-RateLimit-Policy": "100;w=60;segment=user",
+  },
+});
+```
+
+[Learn more about rate limiting →](/features/advanced-usage/custom-rate-limits)
+
+## Advanced: Model Provider Priority
+
+The gateway uses intelligent provider selection:
+
+### Priority Factors
+
+1. **Your provider keys** - Always tried first
+2. **Provider cost** - Cheaper providers prioritized
+3. **Provider reliability** - Historical uptime considered
+4. **Load balancing** - Equal providers rotated
+
+### Example Priority Order
+
+For `model: "gpt-4o-mini"`:
+
+1. Your OpenAI key (BYOK)
+2. Your Azure key (BYOK)
+3. Helicone's OpenAI key (cheapest PTB)
+4. Helicone's Azure key (PTB)
+5. Helicone's Bedrock (PTB)
+6. Other providers
+
+This ensures optimal cost and reliability.
+
+## Fallback vs Rate Limiting
+
+Understand when to use each:
+
+| Scenario | Use Fallbacks | Use Rate Limits |
+|----------|--------------|----------------|
+| Provider goes down | ✅ | ❌ |
+| Prevent quota exhaustion | ❌ | ✅ |
+| Cost optimization | ✅ | ❌ |
+| Control user usage | ❌ | ✅ |
+| Regional compliance | ✅ | ❌ |
+| Protect provider budget | ❌ | ✅ |
+
+**Best practice:** Use both together for maximum reliability and control.
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Provider Routing" icon="route" href="/gateway/provider-routing">
+  Learn how the gateway routes requests to providers
+</Card>
+<Card title="Custom Rate Limits" icon="gauge" href="/features/advanced-usage/custom-rate-limits">
+  Prevent quota exhaustion with custom limits
+</Card>
+<Card title="Error Handling" icon="triangle-exclamation" href="/gateway/concepts/error-handling">
+  Advanced error handling and retry strategies
+</Card>
+<Card title="Browse Models" icon="grid" href="https://helicone.ai/models">
+  See which providers support your models
+</Card>
+</CardGroup>

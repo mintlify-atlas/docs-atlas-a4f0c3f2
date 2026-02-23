@@ -1,0 +1,395 @@
+---
+title: "Anthropic Integration"
+description: "Integrate Helicone with Anthropic Claude models"
+icon: "brain"
+---
+
+Integrate Helicone with Anthropic to track and monitor your Claude model usage with complete observability.
+
+## Quick Start
+
+Integrate Helicone with Anthropic by changing your base URL and adding your API key:
+
+<CodeGroup>
+```python Python
+import os
+from anthropic import Anthropic
+
+client = Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
+    base_url="https://anthropic.helicone.ai",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+
+# Use the client normally
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ],
+)
+
+print(response.content[0].text)
+```
+
+```typescript TypeScript
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  baseURL: "https://anthropic.helicone.ai",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+
+// Use the client normally
+const response = await anthropic.messages.create({
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1024,
+  messages: [
+    { role: "user", content: "What is the capital of France?" }
+  ],
+});
+
+console.log(response.content[0].text);
+```
+
+```bash cURL
+curl https://anthropic.helicone.ai/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Helicone-Auth: Bearer $HELICONE_API_KEY" \
+  -d '{
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "What is the capital of France?"}
+    ]
+  }'
+```
+</CodeGroup>
+
+## Installation
+
+<Tabs>
+  <Tab title="Python">
+    ```bash
+    pip install anthropic
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```bash
+    npm install @anthropic-ai/sdk
+    ```
+  </Tab>
+</Tabs>
+
+## Configuration
+
+### Basic Setup
+
+Only two changes are needed:
+
+1. **Change base URL** to `https://anthropic.helicone.ai`
+2. **Add Helicone-Auth header** with your API key
+
+### Environment Variables
+
+Set up your environment:
+
+```bash .env
+ANTHROPIC_API_KEY=sk-ant-...
+HELICONE_API_KEY=sk-helicone-...
+```
+
+## Features
+
+### Streaming Support
+
+Helicone fully supports streaming responses:
+
+<CodeGroup>
+```python Python
+with client.messages.stream(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Write a story"}],
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+```
+
+```typescript TypeScript
+const stream = await anthropic.messages.stream({
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Write a story" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === 'content_block_delta' && 
+      chunk.delta.type === 'text_delta') {
+    process.stdout.write(chunk.delta.text);
+  }
+}
+```
+</CodeGroup>
+
+### Prompt Caching
+
+Helicone automatically tracks Anthropic's prompt caching:
+
+```python
+system = [
+    {
+        "type": "text",
+        "text": "You are a helpful assistant." * 1000,
+        "cache_control": {"type": "ephemeral"},
+    }
+]
+
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    system=system,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+
+# Helicone tracks cache hits and savings automatically
+```
+
+<Tip>
+  Helicone dashboard shows cache write tokens, cache read tokens, and cost savings from Anthropic's prompt caching.
+</Tip>
+
+### Vision Models
+
+Log image inputs with Claude:
+
+```python
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=1024,
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "url",
+                        "url": "https://example.com/image.jpg",
+                    },
+                },
+            ],
+        }
+    ],
+)
+
+# Helicone tracks image assets automatically
+```
+
+### Tool Use
+
+Track Claude's tool usage:
+
+```python
+tools = [
+    {
+        "name": "get_weather",
+        "description": "Get the current weather in a location",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                }
+            },
+            "required": ["location"],
+        },
+    }
+]
+
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    tools=tools,
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+)
+
+# Helicone automatically logs tool calls
+```
+
+### Custom Properties
+
+Add metadata to your requests:
+
+<CodeGroup>
+```python Python
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-Property-Session": "session-123",
+        "Helicone-Property-User": "user@example.com",
+        "Helicone-Property-Environment": "production",
+    },
+)
+```
+
+```typescript TypeScript
+const response = await anthropic.messages.create(
+  {
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: "Hello" }],
+  },
+  {
+    headers: {
+      "Helicone-Property-Session": "session-123",
+      "Helicone-Property-User": "user@example.com",
+      "Helicone-Property-Environment": "production",
+    },
+  }
+);
+```
+</CodeGroup>
+
+[Learn more about custom properties →](/features/custom-properties)
+
+## Advanced Usage
+
+### User Tracking
+
+Track requests by user:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-User-Id": "user-123",
+    },
+)
+```
+
+### Session Tracking
+
+Group related requests into sessions:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-Session-Id": "session-abc",
+        "Helicone-Session-Name": "Customer Support Chat",
+        "Helicone-Session-Path": "/chat/support",
+    },
+)
+```
+
+### Prompt Tracking
+
+Track prompt versions:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={
+        "Helicone-Prompt-Id": "prompt-v2",
+    },
+)
+```
+
+## AWS Bedrock
+
+Use Claude via AWS Bedrock with Helicone:
+
+```python
+import boto3
+from anthropic import AnthropicBedrock
+
+client = AnthropicBedrock(
+    aws_access_key=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    aws_region=os.getenv("AWS_REGION"),
+    base_url=f"https://bedrock.helicone.ai/v1/{os.getenv('AWS_REGION')}",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Requests not appearing in dashboard" icon="magnifying-glass">
+    **Check these common issues:**
+    
+    1. Verify your `HELICONE_API_KEY` is correct
+    2. Ensure base URL is `https://anthropic.helicone.ai` (no `/v1`)
+    3. Check that `Helicone-Auth` header includes `Bearer ` prefix
+    4. Verify `anthropic-version` header is set (required by Anthropic)
+    5. Wait 10-30 seconds for requests to appear
+    
+    **Still not working?** Check the response for error details.
+  </Accordion>
+
+  <Accordion title="anthropic-version header missing" icon="exclamation-triangle">
+    Anthropic requires the `anthropic-version` header. Add it to your requests:
+    
+    ```python
+    client = Anthropic(
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+        base_url="https://anthropic.helicone.ai",
+        default_headers={
+            "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+            "anthropic-version": "2023-06-01",
+        },
+    )
+    ```
+    
+    The SDK usually handles this automatically.
+  </Accordion>
+
+  <Accordion title="Rate limiting issues" icon="gauge-high">
+    Helicone does not add rate limits. If you're hitting rate limits, they're from Anthropic. The error message will be passed through.
+  </Accordion>
+</AccordionGroup>
+
+## Examples from Source
+
+See real integration examples in the repository:
+
+- [Basic Anthropic integration](https://github.com/Helicone/helicone/blob/main/examples/anthropic/index.ts)
+- [Streaming with prompt caching](https://github.com/Helicone/helicone/blob/main/examples/anthropic/index.ts)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Properties" icon="tag">
+    Add metadata to your requests
+  </Card>
+  <Card title="Sessions" icon="link">
+    Track multi-turn conversations
+  </Card>
+  <Card title="Prompt Caching" icon="database">
+    Monitor cache performance
+  </Card>
+  <Card title="Dashboard" icon="chart-line">
+    Explore your analytics
+  </Card>
+</CardGroup>

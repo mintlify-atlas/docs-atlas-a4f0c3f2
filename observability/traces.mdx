@@ -1,0 +1,479 @@
+---
+title: "Distributed Tracing"
+description: "Visualize and debug complex LLM workflows with parent-child request relationships"
+---
+
+## What is Distributed Tracing?
+
+Distributed tracing lets you track complex LLM workflows where one request triggers multiple child requests. Visualize the entire execution tree, understand dependencies, and debug multi-step AI operations.
+
+## When to Use Traces
+
+<CardGroup cols={2}>
+  <Card title="Agent Workflows" icon="robot">
+    Track agents that make multiple LLM calls to plan, execute, and reflect
+  </Card>
+  <Card title="RAG Pipelines" icon="database">
+    Trace embedding generation, retrieval, and final generation steps
+  </Card>
+  <Card title="Parallel Processing" icon="code-branch">
+    Monitor concurrent LLM calls and their relationships
+  </Card>
+  <Card title="Complex Chains" icon="link">
+    Debug LangChain, LlamaIndex, or custom chains
+  </Card>
+</CardGroup>
+
+## Traces vs Sessions
+
+<Tip>
+**Sessions** group related requests chronologically (like chat messages).
+
+**Traces** show parent-child relationships between requests (like function calls).
+</Tip>
+
+| Feature | Sessions | Traces |
+|---------|----------|--------|
+| Relationship | Sequential | Parent-Child |
+| Use Case | Conversations | Workflows |
+| Visualization | Timeline | Tree |
+| Example | Multi-turn chat | Agent with sub-tasks |
+
+## How Tracing Works
+
+Helicone supports OpenTelemetry-style tracing with parent-child relationships:
+
+```
+Parent Request (Main task)
+├── Child 1 (Subtask A)
+│   ├── Grandchild 1 (Step A.1)
+│   └── Grandchild 2 (Step A.2)
+└── Child 2 (Subtask B)
+    └── Grandchild 3 (Step B.1)
+```
+
+## Using Node IDs
+
+Create traces by setting parent-child relationships with the `Helicone-Node-Id` header:
+
+<ParamField header="Helicone-Node-Id" type="string">
+  Unique identifier for this request node. Format: `parent_id:child_id`
+  
+  - For root requests: `{unique-id}`
+  - For child requests: `{parent-id}:{child-id}`
+</ParamField>
+
+## Basic Trace Example
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+import uuid
+
+client = OpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": "Bearer YOUR_HELICONE_KEY"
+    }
+)
+
+# Parent request
+parent_id = str(uuid.uuid4())
+parent_response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Create a travel plan for Tokyo"}],
+    extra_headers={
+        "Helicone-Node-Id": parent_id
+    }
+)
+
+# Child request 1: Research attractions
+child1_id = str(uuid.uuid4())
+child1_response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "What are top attractions in Tokyo?"}],
+    extra_headers={
+        "Helicone-Node-Id": f"{parent_id}:{child1_id}"
+    }
+)
+
+# Child request 2: Research restaurants
+child2_id = str(uuid.uuid4())
+child2_response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "What are best restaurants in Tokyo?"}],
+    extra_headers={
+        "Helicone-Node-Id": f"{parent_id}:{child2_id}"
+    }
+)
+
+# Grandchild request: Get specific restaurant details
+grandchild_id = str(uuid.uuid4())
+grandchild_response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Tell me about Sukiyabashi Jiro"}],
+    extra_headers={
+        "Helicone-Node-Id": f"{parent_id}:{child2_id}:{grandchild_id}"
+    }
+)
+```
+
+```typescript TypeScript
+import OpenAI from 'openai';
+import { randomUUID } from 'crypto';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://oai.helicone.ai/v1',
+  defaultHeaders: {
+    'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`
+  }
+});
+
+// Parent request
+const parentId = randomUUID();
+const parentResponse = await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Create a travel plan for Tokyo' }]
+  },
+  { headers: { 'Helicone-Node-Id': parentId } }
+);
+
+// Child request 1
+const child1Id = randomUUID();
+const child1Response = await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'What are top attractions in Tokyo?' }]
+  },
+  { headers: { 'Helicone-Node-Id': `${parentId}:${child1Id}` } }
+);
+
+// Child request 2
+const child2Id = randomUUID();
+const child2Response = await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'What are best restaurants in Tokyo?' }]
+  },
+  { headers: { 'Helicone-Node-Id': `${parentId}:${child2Id}` } }
+);
+```
+
+</CodeGroup>
+
+## Agent Trace Example
+
+Track a ReAct-style agent:
+
+```python
+import uuid
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={"Helicone-Auth": "Bearer YOUR_HELICONE_KEY"}
+)
+
+def run_agent(task: str):
+    agent_id = str(uuid.uuid4())
+    
+    # Step 1: Plan
+    plan_id = str(uuid.uuid4())
+    plan = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{
+            "role": "user",
+            "content": f"Plan how to accomplish: {task}"
+        }],
+        extra_headers={
+            "Helicone-Node-Id": f"{agent_id}:{plan_id}",
+            "Helicone-Property-Step": "planning"
+        }
+    )
+    
+    # Step 2: Execute actions
+    actions = parse_plan(plan.choices[0].message.content)
+    
+    for i, action in enumerate(actions):
+        action_id = str(uuid.uuid4())
+        result = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{
+                "role": "user",
+                "content": f"Execute action: {action}"
+            }],
+            extra_headers={
+                "Helicone-Node-Id": f"{agent_id}:{action_id}",
+                "Helicone-Property-Step": f"action_{i}"
+            }
+        )
+    
+    # Step 3: Reflect
+    reflect_id = str(uuid.uuid4())
+    reflection = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{
+            "role": "user",
+            "content": "Review the results and provide final answer"
+        }],
+        extra_headers={
+            "Helicone-Node-Id": f"{agent_id}:{reflect_id}",
+            "Helicone-Property-Step": "reflection"
+        }
+    )
+    
+    return reflection
+
+# Run agent
+result = run_agent("Research AI safety concerns")
+```
+
+## RAG Pipeline Trace
+
+Trace retrieval-augmented generation:
+
+```python
+import uuid
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={"Helicone-Auth": "Bearer YOUR_HELICONE_KEY"}
+)
+
+def rag_query(query: str):
+    trace_id = str(uuid.uuid4())
+    
+    # Step 1: Generate embedding for query
+    embed_id = str(uuid.uuid4())
+    embedding = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=query,
+        extra_headers={
+            "Helicone-Node-Id": f"{trace_id}:{embed_id}",
+            "Helicone-Property-Stage": "embedding"
+        }
+    )
+    
+    # Step 2: Retrieve relevant documents (simulated)
+    docs = vector_search(embedding.data[0].embedding)
+    
+    # Step 3: Generate answer with context
+    gen_id = str(uuid.uuid4())
+    answer = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Answer using the provided context."},
+            {"role": "user", "content": f"Context: {docs}\n\nQuestion: {query}"}
+        ],
+        extra_headers={
+            "Helicone-Node-Id": f"{trace_id}:{gen_id}",
+            "Helicone-Property-Stage": "generation"
+        }
+    )
+    
+    return answer
+
+result = rag_query("What is quantum computing?")
+```
+
+## Parallel Request Tracing
+
+Trace concurrent requests:
+
+```python
+import asyncio
+import uuid
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={"Helicone-Auth": "Bearer YOUR_HELICONE_KEY"}
+)
+
+async def parallel_analysis(topic: str):
+    parent_id = str(uuid.uuid4())
+    
+    # Create multiple parallel analysis tasks
+    tasks = [
+        analyze_aspect(parent_id, topic, "technical", "Technical analysis"),
+        analyze_aspect(parent_id, topic, "business", "Business analysis"),
+        analyze_aspect(parent_id, topic, "ethical", "Ethical analysis"),
+    ]
+    
+    results = await asyncio.gather(*tasks)
+    return results
+
+async def analyze_aspect(parent_id: str, topic: str, aspect: str, prompt: str):
+    child_id = str(uuid.uuid4())
+    
+    response = await client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": f"{prompt} of {topic}"}],
+        extra_headers={
+            "Helicone-Node-Id": f"{parent_id}:{child_id}",
+            "Helicone-Property-Aspect": aspect
+        }
+    )
+    
+    return response
+
+# Run parallel analysis
+results = asyncio.run(parallel_analysis("AI regulation"))
+```
+
+## Custom Trace Logging
+
+For non-OpenAI requests or custom tracing:
+
+```typescript
+// Log custom traces via API
+await fetch('https://api.helicone.ai/v1/trace/custom/log', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_HELICONE_KEY',
+    'Content-Type': 'application/json',
+    'Helicone-Node-Id': `${parentId}:${childId}`
+  },
+  body: JSON.stringify({
+    providerRequest: {
+      url: "https://api.anthropic.com/v1/messages",
+      json: {
+        model: "claude-3-opus-20240229",
+        messages: [{ role: "user", content: "Hello" }]
+      },
+      meta: { 'Helicone-Auth': 'Bearer YOUR_HELICONE_KEY' }
+    },
+    providerResponse: {
+      json: responseData,
+      status: 200,
+      headers: {}
+    },
+    timing: {
+      startTime: { seconds: startTime, nanos: 0 },
+      endTime: { seconds: endTime, nanos: 0 }
+    },
+    provider: "anthropic"
+  })
+});
+```
+
+## Viewing Traces
+
+Visualize traces in the Helicone dashboard:
+
+<Steps>
+  <Step title="Navigate to Requests">
+    Go to the Requests page and find a traced request
+  </Step>
+  <Step title="View Trace Tree">
+    Click the trace icon to see the full parent-child hierarchy
+  </Step>
+  <Step title="Analyze Each Node">
+    Click any node to see its request details, cost, and latency
+  </Step>
+  <Step title="Identify Bottlenecks">
+    Find slow or expensive operations in the trace tree
+  </Step>
+</Steps>
+
+## Trace Metrics
+
+Helicone calculates metrics across traces:
+
+- **Total Cost**: Sum of all nodes in the trace
+- **Total Duration**: Time from root start to last leaf completion
+- **Node Count**: Number of requests in the trace
+- **Max Depth**: Deepest level in the trace tree
+- **Success Rate**: Percentage of successful nodes
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Meaningful Node IDs">
+    Generate unique IDs but keep them traceable:
+    ```python
+    import uuid
+    parent_id = str(uuid.uuid4())
+    child_id = str(uuid.uuid4())
+    node_id = f"{parent_id}:{child_id}"
+    ```
+  </Accordion>
+  
+  <Accordion title="Add Context with Properties">
+    Use custom properties to annotate trace nodes:
+    ```python
+    extra_headers={
+        "Helicone-Node-Id": node_id,
+        "Helicone-Property-Step": "planning",
+        "Helicone-Property-Iteration": "1"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Limit Trace Depth">
+    Keep traces manageable. Very deep traces (>10 levels) can be hard to visualize and debug.
+  </Accordion>
+  
+  <Accordion title="Combine with Sessions">
+    Use both tracing (for workflow structure) and sessions (for conversation context):
+    ```python
+    extra_headers={
+        "Helicone-Node-Id": f"{parent_id}:{child_id}",
+        "Helicone-Session-Id": session_id
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle Errors Gracefully">
+    Continue tracing even if some nodes fail. This helps debug failures:
+    ```python
+    try:
+        result = make_llm_call(node_id)
+    except Exception as e:
+        # Log error but continue trace
+        log_error(node_id, e)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Tracing Integrations
+
+<CardGroup cols={2}>
+  <Card title="OpenTelemetry" icon="diagram-project">
+    Helicone supports OTEL trace format for compatibility with existing instrumentation
+  </Card>
+  <Card title="LangChain" icon="link" href="/integrations/langchain">
+    Automatic tracing for LangChain chains and agents
+  </Card>
+  <Card title="LlamaIndex" icon="book">
+    Trace RAG pipelines and query engines
+  </Card>
+  <Card title="Custom Frameworks" icon="code">
+    Use custom trace logging API for any framework
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Session Tracking" icon="layer-group" href="/observability/sessions">
+    Learn about grouping related requests
+  </Card>
+  <Card title="Custom Properties" icon="tags" href="/observability/custom-properties">
+    Add metadata to trace nodes
+  </Card>
+  <Card title="Request Logging" icon="list" href="/observability/requests">
+    Understand individual request tracking
+  </Card>
+  <Card title="User Metrics" icon="users" href="/observability/user-metrics">
+    Track traces per user
+  </Card>
+</CardGroup>

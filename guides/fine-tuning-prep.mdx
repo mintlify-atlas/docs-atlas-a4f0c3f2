@@ -1,0 +1,640 @@
+---
+title: "Prepare Data for Fine-Tuning with Helicone"
+sidebarTitle: "Fine-Tuning Preparation"
+description: "Use Helicone production data to create high-quality fine-tuning datasets"
+---
+
+Fine-tuning improves model performance for your specific use case, but requires high-quality training data. This guide shows you how to use Helicone production logs to create fine-tuning datasets.
+
+## The Problem
+
+Creating fine-tuning datasets is challenging:
+- **Time-consuming**: Manually creating examples takes weeks
+- **Disconnected from reality**: Synthetic examples don't match real usage
+- **Quality issues**: Hard to identify high-quality examples at scale
+- **Format complexity**: Converting data to fine-tuning format is tedious
+
+## The Solution
+
+Helicone captures all your production LLM interactions, giving you:
+- Real user queries and responses
+- Quality signals (user feedback, scores)
+- Performance metrics (latency, costs)
+- Easy export to fine-tuning format
+
+## When to Fine-Tune
+
+Consider fine-tuning when:
+- **Consistent task pattern**: Same type of task repeated frequently
+- **Quality issues**: Base model doesn't perform well enough
+- **Cost concerns**: Using expensive models (GPT-4) for simple tasks
+- **Latency problems**: Need faster responses
+- **Volume justifies it**: Thousands of requests per month
+
+<Note>
+Fine-tuning works best when you have 500+ high-quality examples of your specific task.
+</Note>
+
+## Implementation Guide
+
+### Step 1: Instrument Your Application
+
+Add metadata to help identify good training examples:
+
+<CodeGroup>
+```typescript Node.js
+import { OpenAI } from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+
+// Make request with metadata
+const response = await client.chat.completions.create(
+  {
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: "Extract product names from customer queries" },
+      { role: "user", content: "I need help with my iPhone 15 Pro" }
+    ],
+  },
+  {
+    headers: {
+      // Essential for filtering later
+      "Helicone-Property-Task": "product-extraction",
+      "Helicone-Property-Environment": "production",
+      "Helicone-User-Id": userId,
+    },
+  }
+);
+
+// Get response ID for later feedback
+const heliconeId = response.id;
+```
+
+```python Python
+from openai import OpenAI
+import os
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    }
+)
+
+# Make request with metadata
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "system", "content": "Extract product names from customer queries"},
+        {"role": "user", "content": "I need help with my iPhone 15 Pro"}
+    ],
+    extra_headers={
+        # Essential for filtering later
+        "Helicone-Property-Task": "product-extraction",
+        "Helicone-Property-Environment": "production",
+        "Helicone-User-Id": user_id,
+    }
+)
+
+# Get response ID for later feedback
+helicone_id = response.id
+```
+</CodeGroup>
+
+### Step 2: Collect Quality Signals
+
+Capture feedback to identify good training examples:
+
+<Tabs>
+<Tab title="User Feedback">
+Let users rate responses:
+
+```typescript
+// After showing response to user
+function captureUserFeedback(heliconeId: string, rating: 'positive' | 'negative') {
+  await fetch(`https://api.helicone.ai/v1/request/${heliconeId}/feedback`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${HELICONE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      rating: rating === 'positive' ? 1 : 0,
+    }),
+  });
+}
+
+// Usage: When user clicks thumbs up/down
+if (userClickedThumbsUp) {
+  await captureUserFeedback(heliconeId, 'positive');
+}
+```
+</Tab>
+
+<Tab title="Automated Scoring">
+Use evaluation metrics:
+
+```python
+import requests
+
+def score_response(helicone_id: str, actual_output: str, expected_output: str):
+    # Calculate similarity or correctness
+    accuracy = calculate_accuracy(actual_output, expected_output)
+    
+    # Report to Helicone
+    requests.post(
+        f"https://api.helicone.ai/v1/request/{helicone_id}/score",
+        headers={
+            "Authorization": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "scores": {
+                "accuracy": int(accuracy * 100)  # Convert to 0-100 scale
+            }
+        }
+    )
+```
+</Tab>
+
+<Tab title="Human Review">
+Tag high-quality examples in dashboard:
+
+1. Go to [Helicone Requests](https://helicone.ai/requests)
+2. Review responses for your task
+3. Add property to good examples:
+   ```typescript
+   // Via API
+   await fetch(`https://api.helicone.ai/v1/request/${requestId}/property`, {
+     method: "PUT",
+     headers: {
+       "Authorization": `Bearer ${HELICONE_API_KEY}`,
+       "Content-Type": "application/json",
+     },
+     body: JSON.stringify({
+       "TrainingQuality": "excellent"
+     }),
+   });
+   ```
+</Tab>
+</Tabs>
+
+### Step 3: Filter for Quality Data
+
+Query Helicone for high-quality examples:
+
+```typescript
+async function fetchTrainingData() {
+  const response = await fetch(
+    "https://api.helicone.ai/v1/request/query-clickhouse",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${HELICONE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        filter: {
+          left: {
+            request_response_rmt: {
+              // Only production data
+              properties: {
+                Environment: { equals: "production" },
+                Task: { equals: "product-extraction" },
+              },
+            },
+          },
+          operator: "and",
+          right: {
+            request_response_rmt: {
+              // Only successful requests
+              status: { gte: 200, lt: 300 },
+              // From last 3 months
+              request_created_at: {
+                gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+            },
+          },
+        },
+        limit: 10000,
+      }),
+    }
+  );
+  
+  const data = await response.json();
+  
+  // Filter for quality
+  const qualityData = data.data.filter((req: any) => {
+    // Has positive feedback OR high score
+    const hasPositiveFeedback = req.feedback?.rating === 1;
+    const hasHighScore = req.scores?.accuracy >= 90;
+    
+    // No errors
+    const noErrors = req.status >= 200 && req.status < 300;
+    
+    // Reasonable latency (not outliers)
+    const reasonableLatency = req.latency < 5000;
+    
+    return (hasPositiveFeedback || hasHighScore) && noErrors && reasonableLatency;
+  });
+  
+  console.log(`Found ${qualityData.length} quality training examples`);
+  return qualityData;
+}
+```
+
+### Step 4: Convert to Fine-Tuning Format
+
+Transform Helicone data to OpenAI's fine-tuning format:
+
+```typescript
+interface FineTuningExample {
+  messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }>;
+}
+
+function convertToFineTuningFormat(
+  heliconeRequests: any[]
+): FineTuningExample[] {
+  return heliconeRequests.map((req) => {
+    // Extract messages from request
+    const requestBody = JSON.parse(req.request_body);
+    const responseBody = JSON.parse(req.response_body);
+    
+    return {
+      messages: [
+        // System message
+        ...(requestBody.messages.filter((m: any) => m.role === "system")),
+        // User message
+        ...(requestBody.messages.filter((m: any) => m.role === "user")),
+        // Assistant response
+        {
+          role: "assistant",
+          content: responseBody.choices[0].message.content,
+        },
+      ],
+    };
+  });
+}
+
+// Convert and save
+const trainingData = await fetchTrainingData();
+const formattedData = convertToFineTuningFormat(trainingData);
+
+// Save as JSONL (OpenAI format)
+import fs from "fs";
+const jsonl = formattedData
+  .map((example) => JSON.stringify(example))
+  .join("\n");
+fs.writeFileSync("training_data.jsonl", jsonl);
+
+console.log(`Saved ${formattedData.length} examples to training_data.jsonl`);
+```
+
+### Step 5: Validate Training Data
+
+Ensure data quality before fine-tuning:
+
+```python
+import json
+from collections import Counter
+
+def validate_training_data(file_path: str):
+    """Validate fine-tuning dataset."""
+    with open(file_path, 'r') as f:
+        examples = [json.loads(line) for line in f]
+    
+    print(f"Total examples: {len(examples)}")
+    
+    # Check for duplicates
+    user_messages = [e['messages'][1]['content'] for e in examples]
+    duplicates = [k for k, v in Counter(user_messages).items() if v > 1]
+    print(f"Duplicate user queries: {len(duplicates)}")
+    
+    # Check message length distribution
+    lengths = [len(e['messages'][1]['content']) for e in examples]
+    print(f"Avg user message length: {sum(lengths) / len(lengths):.0f} chars")
+    print(f"Min: {min(lengths)}, Max: {max(lengths)}")
+    
+    # Check for system message consistency
+    system_messages = [e['messages'][0]['content'] for e in examples]
+    unique_systems = set(system_messages)
+    print(f"Unique system prompts: {len(unique_systems)}")
+    
+    # Recommendations
+    if len(examples) < 500:
+        print("\n⚠️  Warning: Less than 500 examples. Consider collecting more data.")
+    
+    if len(duplicates) > len(examples) * 0.1:
+        print("\n⚠️  Warning: >10% duplicates. Consider deduplicating.")
+    
+    if len(unique_systems) > 5:
+        print("\n⚠️  Warning: Multiple system prompts. Fine-tuning works best with consistent prompts.")
+    
+    return len(examples) >= 500 and len(duplicates) < len(examples) * 0.1
+
+# Validate before uploading
+is_valid = validate_training_data("training_data.jsonl")
+if is_valid:
+    print("\n✅ Dataset looks good! Ready for fine-tuning.")
+else:
+    print("\n❌ Dataset needs improvement. Review warnings above.")
+```
+
+### Step 6: Create Fine-Tuning Job
+
+Upload to OpenAI and start training:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Upload training file
+with open("training_data.jsonl", "rb") as f:
+    training_file = client.files.create(
+        file=f,
+        purpose="fine-tune"
+    )
+
+print(f"Uploaded training file: {training_file.id}")
+
+# Create fine-tuning job
+job = client.fine_tuning.jobs.create(
+    training_file=training_file.id,
+    model="gpt-4o-mini-2024-07-18",  # Base model
+    suffix="product-extraction",  # Your custom name
+    hyperparameters={
+        "n_epochs": 3  # Adjust based on dataset size
+    }
+)
+
+print(f"Fine-tuning job created: {job.id}")
+print(f"Status: {job.status}")
+print(f"\nCheck status: https://platform.openai.com/finetune/{job.id}")
+```
+
+### Step 7: Test Fine-Tuned Model
+
+Compare performance against base model:
+
+```typescript
+// Test with base model
+const baseResponse = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    { role: "system", content: "Extract product names from customer queries" },
+    { role: "user", content: "Having issues with my MacBook Air" }
+  ],
+});
+
+console.log("Base model:", baseResponse.choices[0].message.content);
+
+// Test with fine-tuned model
+const fineTunedResponse = await client.chat.completions.create(
+  {
+    model: "ft:gpt-4o-mini-2024-07-18:org:product-extraction:abc123",
+    messages: [
+      { role: "system", content: "Extract product names from customer queries" },
+      { role: "user", content: "Having issues with my MacBook Air" }
+    ],
+  },
+  {
+    headers: {
+      "Helicone-Property-Model": "fine-tuned",
+      "Helicone-Property-Task": "product-extraction",
+    },
+  }
+);
+
+console.log("Fine-tuned model:", fineTunedResponse.choices[0].message.content);
+```
+
+**Compare in Helicone:**
+```
+Filter by: Task = product-extraction
+Group by: Model property
+
+Metrics to compare:
+- Accuracy scores
+- User feedback (positive %)
+- Latency
+- Cost per request
+```
+
+## Use Case Examples
+
+<Tabs>
+<Tab title="Classification">
+Training a model to classify support tickets:
+
+```typescript
+// Collect production classifications
+await client.chat.completions.create(
+  {
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: "Classify support tickets: billing, technical, or sales" },
+      { role: "user", content: "I was charged twice for my subscription" }
+    ],
+  },
+  {
+    headers: {
+      "Helicone-Property-Task": "ticket-classification",
+    },
+  }
+);
+
+// After collecting 1000+ examples, fine-tune gpt-4o-mini
+// Result: 10x cheaper, 2x faster, same accuracy
+```
+</Tab>
+
+<Tab title="Entity Extraction">
+Extracting structured data from text:
+
+```typescript
+// Collect entity extractions
+await client.chat.completions.create(
+  {
+    model: "gpt-4",
+    messages: [
+      {
+        role: "system",
+        content: "Extract: {name, date, amount} from receipts as JSON"
+      },
+      { role: "user", content: receiptText }
+    ],
+  },
+  {
+    headers: {
+      "Helicone-Property-Task": "receipt-extraction",
+    },
+  }
+);
+
+// Fine-tune on validated extractions
+// Result: More consistent JSON format, better accuracy
+```
+</Tab>
+
+<Tab title="Style Adaptation">
+Matching your brand voice:
+
+```typescript
+// Collect responses users loved
+await client.chat.completions.create(
+  {
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: "Friendly customer service response" },
+      { role: "user", content: userQuestion }
+    ],
+  },
+  {
+    headers: {
+      "Helicone-Property-Task": "customer-service",
+    },
+  }
+);
+
+// Fine-tune on highly-rated responses
+// Result: Consistent brand voice, users happier
+```
+</Tab>
+</Tabs>
+
+## Best Practices
+
+<Tip>
+**Start collecting early**: Begin logging and gathering feedback before you need to fine-tune
+</Tip>
+
+<Tip>
+**Quality over quantity**: 500 excellent examples beats 5,000 mediocre ones
+</Tip>
+
+<Tip>
+**Include edge cases**: Don't just use typical examples; include challenging cases
+</Tip>
+
+<Tip>
+**Validate continuously**: Test fine-tuned model against base model with real traffic
+</Tip>
+
+<Warning>
+**Avoid overfitting**: Don't include too many similar examples. Diversity is key.
+</Warning>
+
+## Export Options
+
+Helicone provides multiple ways to export training data:
+
+### Option 1: API Query (Recommended)
+Use the query API for programmatic filtering and export (shown above).
+
+### Option 2: NPM Export Tool
+```bash
+# Export all requests for a task
+HELICONE_API_KEY="sk-xxx" npx @helicone/export \
+  --property Task=product-extraction \
+  --start-date 2024-01-01 \
+  --limit 10000 \
+  --format jsonl \
+  --include-body
+```
+
+### Option 3: Dashboard Export
+1. Go to [Helicone Requests](https://helicone.ai/requests)
+2. Apply filters (Task, Environment, Date range)
+3. Click "Export" button
+4. Download as JSON/CSV
+
+## Monitoring Fine-Tuned Models
+
+Track performance of fine-tuned models:
+
+```typescript
+// Add model identifier
+await client.chat.completions.create(
+  {
+    model: "ft:gpt-4o-mini-2024-07-18:org:product-extraction:abc123",
+    messages: [...],
+  },
+  {
+    headers: {
+      "Helicone-Property-ModelType": "fine-tuned",
+      "Helicone-Property-BaseModel": "gpt-4o-mini",
+      "Helicone-Property-FineTuneVersion": "v1",
+    },
+  }
+);
+
+// Compare metrics:
+// - Accuracy (via scores)
+// - User satisfaction (via feedback)
+// - Cost savings
+// - Latency improvements
+```
+
+## ROI Calculation
+
+```typescript
+interface FineTuningROI {
+  before: {
+    model: "gpt-4o";
+    costPerRequest: 0.015;
+    requestsPerMonth: 10000;
+  };
+  after: {
+    model: "ft:gpt-4o-mini";
+    costPerRequest: 0.003;
+    requestsPerMonth: 10000;
+  };
+}
+
+function calculateROI(roi: FineTuningROI) {
+  const monthlyCostBefore = roi.before.costPerRequest * roi.before.requestsPerMonth;
+  const monthlyCostAfter = roi.after.costPerRequest * roi.after.requestsPerMonth;
+  const monthlySavings = monthlyCostBefore - monthlyCostAfter;
+  const annualSavings = monthlySavings * 12;
+  
+  console.log(`Monthly savings: $${monthlySavings.toFixed(2)}`);
+  console.log(`Annual savings: $${annualSavings.toFixed(2)}`);
+  console.log(`ROI: ${((monthlyCostBefore / monthlyCostAfter) * 100).toFixed(0)}% cost reduction`);
+}
+
+// Example output:
+// Monthly savings: $120.00
+// Annual savings: $1,440.00
+// ROI: 80% cost reduction
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Export Data Tool" icon="download" href="/tools/export">
+  Learn about data export options
+</Card>
+
+<Card title="Evaluation Scores" icon="star" href="/features/advanced-usage/scores">
+  Track model quality metrics
+</Card>
+
+<Card title="User Feedback" icon="thumbs-up" href="/features/advanced-usage/custom-properties">
+  Collect and use user feedback
+</Card>
+
+<Card title="Cost Tracking" icon="dollar-sign" href="/guides/cost-tracking">
+  Monitor ROI of fine-tuning
+</Card>
+</CardGroup>

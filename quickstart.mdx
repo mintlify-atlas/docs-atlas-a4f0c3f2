@@ -1,80 +1,386 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quickstart Guide"
+sidebarTitle: "Quickstart"
+description: "Get your first LLM request logged with Helicone in under 2 minutes"
 ---
 
-## Get started in three steps
-
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will walk you through setting up Helicone and sending your first request. You'll use our AI Gateway to access 100+ LLM models through the familiar OpenAI SDK with automatic logging built in.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Already using OpenAI, Anthropic, or other providers? Helicone integrates with just a URL change—no refactoring required.
 </Note>
+
+## Prerequisites
+
+- A Helicone account ([sign up free](https://helicone.ai/signup))
+- Node.js or Python installed (or just use cURL)
+- 2 minutes
+
+## Step 1: Create Your Account
+
+<Steps>
+  <Step title="Sign up for Helicone">
+    Navigate to [helicone.ai/signup](https://helicone.ai/signup) and create your free account.
+    
+    <Tip>
+      Helicone offers a generous free tier with **10,000 requests per month**—no credit card required.
+    </Tip>
+  </Step>
+
+  <Step title="Generate your API key">
+    After signing up, go to [Settings > API Keys](https://us.helicone.ai/settings/api-keys) and generate a new API key.
+    
+    Save this key securely—you'll use it to authenticate your requests.
+  </Step>
+
+  <Step title="Add credits (optional)">
+    If you want to use Helicone's AI Gateway to access 100+ models without managing individual provider keys:
+    
+    1. Visit [helicone.ai/credits](https://us.helicone.ai/credits)
+    2. Add credits to your account (starting at $10)
+    3. Access any model instantly with 0% markup
+    
+    <Accordion title="What are credits and how do they work?">
+      Credits let you access 100+ LLM providers (OpenAI, Anthropic, Google, etc.) without signing up for each one individually. Here's how it works:
+      
+      - **0% markup**: You pay exactly what providers charge
+      - **Unified billing**: One account for all providers
+      - **Instant access**: No need to sign up for OpenAI, Anthropic, etc.
+      - **Automatic fallbacks**: Switch providers when one is down
+      - **Simplified management**: We handle provider API keys
+      
+      **Alternatively**, you can [bring your own provider keys](https://us.helicone.ai/providers) for direct billing and full control.
+    </Accordion>
+  </Step>
+</Steps>
+
+## Step 2: Send Your First Request
+
+Helicone's AI Gateway provides an OpenAI-compatible API. Simply point your existing OpenAI SDK to our gateway URL:
+
+<CodeGroup>
+```typescript TypeScript
+import { OpenAI } from "openai";
+
+// Initialize the OpenAI client with Helicone's gateway
+const client = new OpenAI({
+  baseURL: "https://ai-gateway.helicone.ai",
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+// Make a request to any supported model
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini", // Try: "claude-sonnet-4", "gemini-2.0-flash"
+  messages: [
+    { role: "user", content: "Explain Helicone in one sentence." }
+  ],
+});
+
+console.log(response.choices[0].message.content);
+```
+
+```python Python
+from openai import OpenAI
+import os
+
+# Initialize the OpenAI client with Helicone's gateway
+client = OpenAI(
+    base_url="https://ai-gateway.helicone.ai",
+    api_key=os.getenv("HELICONE_API_KEY")
+)
+
+# Make a request to any supported model
+response = client.chat.completions.create(
+    model="gpt-4o-mini",  # Try: "claude-sonnet-4", "gemini-2.0-flash"
+    messages=[
+        {"role": "user", "content": "Explain Helicone in one sentence."}
+    ]
+)
+
+print(response.choices[0].message.content)
+```
+
+```bash cURL
+curl https://ai-gateway.helicone.ai/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $HELICONE_API_KEY" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Explain Helicone in one sentence."
+      }
+    ]
+  }'
+```
+</CodeGroup>
+
+<Warning>
+  Make sure to set your `HELICONE_API_KEY` environment variable. Never hardcode API keys in your source code.
+</Warning>
+
+## Step 3: View Your Request in the Dashboard
+
+Within seconds of sending your request, it will appear in your Helicone dashboard:
+
+1. Navigate to [us.helicone.ai/requests](https://us.helicone.ai/requests)
+2. You'll see your request with full details:
+   - Request and response bodies
+   - Cost breakdown
+   - Latency metrics (total time, time to first token)
+   - Token usage
+   - Model and provider information
+
+<Frame>
+  <img src="/images/quickstart/first-request.png" alt="Your first request in the Helicone dashboard" />
+</Frame>
+
+<Tip>
+  Click on any request to see the full conversation, including system prompts, function calls, and streaming details.
+</Tip>
+
+## Try More Models
+
+One of Helicone's superpowers is unified access to 100+ models. Try switching models by just changing the `model` parameter:
+
+<CodeGroup>
+```typescript Anthropic Claude
+const response = await client.chat.completions.create({
+  model: "claude-sonnet-4",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+```typescript Google Gemini
+const response = await client.chat.completions.create({
+  model: "gemini-2.0-flash",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+```typescript DeepSeek
+const response = await client.chat.completions.create({
+  model: "deepseek-chat",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+```typescript Groq (Fast)
+const response = await client.chat.completions.create({
+  model: "llama-3.3-70b-versatile",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+</CodeGroup>
+
+<Card title="Explore All Models" icon="database" href="https://www.helicone.ai/models">
+  Browse our catalog of 100+ supported models across 20+ providers
+</Card>
+
+## Add Custom Metadata
+
+Enhance your requests with custom properties for better filtering and debugging:
+
+<CodeGroup>
+```typescript TypeScript
+const response = await client.chat.completions.create(
+  {
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: "Hello!" }],
+  },
+  {
+    headers: {
+      "Helicone-Property-User-Id": "user_123",
+      "Helicone-Property-Environment": "production",
+      "Helicone-Property-Feature": "chatbot",
+    },
+  }
+);
+```
+
+```python Python
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_headers={
+        "Helicone-Property-User-Id": "user_123",
+        "Helicone-Property-Environment": "production",
+        "Helicone-Property-Feature": "chatbot",
+    }
+)
+```
+</CodeGroup>
+
+These properties become searchable dimensions in your dashboard, letting you filter requests by user, feature, environment, or any custom tag.
+
+<Tip>
+  Use custom properties to track costs per user, debug specific features, or analyze performance across environments.
+</Tip>
+
+## Track Sessions (Multi-Step Workflows)
+
+Building an AI agent or chatbot with multiple LLM calls? Use sessions to group related requests:
+
+<CodeGroup>
+```typescript TypeScript
+import { randomUUID } from "crypto";
+
+const sessionId = randomUUID();
+
+// First request in the session
+await client.chat.completions.create(
+  {
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: "Generate a blog outline" }],
+  },
+  {
+    headers: {
+      "Helicone-Session-Id": sessionId,
+      "Helicone-Session-Name": "Blog Writer",
+      "Helicone-Session-Path": "/outline",
+    },
+  }
+);
+
+// Second request in the same session
+await client.chat.completions.create(
+  {
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: "Write the introduction" }],
+  },
+  {
+    headers: {
+      "Helicone-Session-Id": sessionId,
+      "Helicone-Session-Name": "Blog Writer",
+      "Helicone-Session-Path": "/introduction",
+    },
+  }
+);
+```
+
+```python Python
+import uuid
+
+session_id = str(uuid.uuid4())
+
+# First request in the session
+client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Generate a blog outline"}],
+    extra_headers={
+        "Helicone-Session-Id": session_id,
+        "Helicone-Session-Name": "Blog Writer",
+        "Helicone-Session-Path": "/outline",
+    }
+)
+
+# Second request in the same session
+client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Write the introduction"}],
+    extra_headers={
+        "Helicone-Session-Id": session_id,
+        "Helicone-Session-Name": "Blog Writer",
+        "Helicone-Session-Path": "/introduction",
+    }
+)
+```
+</CodeGroup>
+
+View your session in the [Sessions dashboard](https://us.helicone.ai/sessions) to see the complete trace tree of your AI workflow.
+
+<Card title="Learn More About Sessions" icon="code-branch" href="/features/sessions">
+  Deep dive into session tracking for complex AI agents and workflows
+</Card>
+
+## What's Next?
+
+Now that you're logging requests, explore what else Helicone can do:
+
+<CardGroup cols={2}>
+  <Card title="Platform Overview" icon="compass" href="/architecture">
+    Understand how Helicone works and explore the architecture
+  </Card>
+  <Card title="Gateway Features" icon="route" href="/gateway/overview">
+    Set up automatic fallbacks, caching, and rate limits
+  </Card>
+  <Card title="Cost Tracking" icon="dollar-sign" href="/guides/cookbooks/cost-tracking">
+    Track costs per user, feature, or any custom dimension
+  </Card>
+  <Card title="Prompt Management" icon="wand-magic-sparkles" href="/gateway/prompt-integration">
+    Deploy and version prompts without code changes
+  </Card>
+</CardGroup>
+
+## Common Integration Patterns
+
+<AccordionGroup>
+  <Accordion title="Using with LangChain">
+    ```typescript
+    import { ChatOpenAI } from "@langchain/openai";
+    
+    const model = new ChatOpenAI({
+      configuration: {
+        baseURL: "https://ai-gateway.helicone.ai",
+        defaultHeaders: {
+          "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+        },
+      },
+    });
+    ```
+    
+    [View full LangChain integration guide →](/gateway/integrations/langchain)
+  </Accordion>
+
+  <Accordion title="Using with Vercel AI SDK">
+    ```typescript
+    import { createOpenAI } from "@ai-sdk/openai";
+    
+    const openai = createOpenAI({
+      baseURL: "https://ai-gateway.helicone.ai",
+      apiKey: process.env.HELICONE_API_KEY,
+    });
+    ```
+    
+    [View full Vercel AI SDK integration guide →](/gateway/integrations/vercel-ai-sdk)
+  </Accordion>
+
+  <Accordion title="Async logging (without proxy)">
+    If you prefer not to use a proxy, you can log requests asynchronously:
+    
+    ```typescript
+    import { HeliconeManualLogger } from "@helicone/helpers";
+    
+    const logger = new HeliconeManualLogger({
+      apiKey: process.env.HELICONE_API_KEY,
+    });
+    
+    await logger.logRequest(requestBody, async (recorder) => {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+      
+      const data = await response.json();
+      recorder.appendResults(data);
+      return data;
+    });
+    ```
+    
+    [View async logging documentation →](/getting-started/integration-method/async)
+  </Accordion>
+</AccordionGroup>
+
+## Need Help?
+
+We're here to support you:
+
+- Join our [Discord community](https://discord.com/invite/HwUbV3Q8qz) for live help
+- Email us at [help@helicone.ai](mailto:help@helicone.ai)
+- Browse our [FAQ](/faq/how-we-calculate-cost) for common questions
+- Check out [example code](https://github.com/Helicone/helicone/tree/main/examples) on GitHub

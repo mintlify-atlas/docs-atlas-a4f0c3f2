@@ -1,0 +1,519 @@
+---
+title: 'SDK Integration'
+description: 'Integrate Helicone prompts into your application using the TypeScript SDK'
+---
+
+## Installation
+
+Install the Helicone prompts package:
+
+```bash
+npm install @helicone/prompts
+# or
+yarn add @helicone/prompts
+# or
+pnpm add @helicone/prompts
+```
+
+## Quick Start
+
+```typescript
+import { HeliconePromptManager } from "@helicone/prompts";
+import OpenAI from "openai";
+
+// Initialize the prompt manager
+const manager = new HeliconePromptManager({
+  apiKey: process.env.HELICONE_API_KEY!,
+  baseUrl: "https://api.helicone.ai", // optional, defaults to this
+});
+
+// Load and compile a prompt
+const { body, errors } = await manager.getPromptBody({
+  prompt_id: "customer-support",
+  inputs: {
+    customer_name: "Alice",
+    issue_type: "billing",
+  },
+});
+
+if (errors.length > 0) {
+  console.error("Variable substitution errors:", errors);
+}
+
+// Use with OpenAI
+const openai = new OpenAI();
+const response = await openai.chat.completions.create(body);
+```
+
+## Core Methods
+
+### getPromptBody
+
+Retrieves a prompt, substitutes variables, and returns the compiled body ready for your LLM provider.
+
+```typescript
+const result = await manager.getPromptBody({
+  prompt_id: "your-prompt-id",     // Required: Prompt identifier
+  version_id?: "version-uuid",      // Optional: Specific version
+  environment?: "production",       // Optional: Environment name
+  inputs?: {                        // Optional: Variables to substitute
+    name: "John",
+    age: 30,
+    context: "technical documentation",
+  },
+});
+
+// result.body - Compiled OpenAI-compatible request
+// result.errors - Array of validation errors
+```
+
+### pullPromptVersion
+
+Fetches prompt version metadata without the full body.
+
+```typescript
+const version = await manager.pullPromptVersion({
+  prompt_id: "your-prompt-id",
+  environment: "production",
+});
+
+console.log(`Version: v${version.major_version}.${version.minor_version}`);
+console.log(`Model: ${version.model}`);
+console.log(`Commit: ${version.commit_message}`);
+```
+
+### pullPromptBody
+
+Retrieves the raw prompt body without variable substitution.
+
+```typescript
+const rawBody = await manager.pullPromptBody({
+  prompt_id: "your-prompt-id",
+  environment: "production",
+});
+
+// Contains template variables like {{hc:name:string}}
+```
+
+## Working with Variables
+
+Helicone prompts support typed variables using the `{{hc:name:type}}` syntax.
+
+### Variable Types
+
+```typescript
+// Template example
+const template = {
+  messages: [
+    {
+      role: "system",
+      content: "You are a {{hc:role:string}} assistant.",
+    },
+    {
+      role: "user",
+      content: "My age is {{hc:age:number}} and I want {{hc:premium:boolean}} features.",
+    },
+  ],
+};
+
+// Usage
+const { body, errors } = await manager.getPromptBody({
+  prompt_id: "my-prompt",
+  inputs: {
+    role: "helpful",              // string
+    age: 25,                      // number
+    premium: true,                // boolean
+  },
+});
+```
+
+### Variable Validation
+
+The SDK validates variable types and returns errors:
+
+```typescript
+const { body, errors } = await manager.getPromptBody({
+  prompt_id: "my-prompt",
+  inputs: {
+    age: "twenty-five", // Wrong type - should be number
+  },
+});
+
+if (errors.length > 0) {
+  errors.forEach((error) => {
+    console.error(`Variable "${error.variable}" expected ${error.expected}, got:`, error.value);
+  });
+}
+```
+
+### Extract Variables from Template
+
+```typescript
+import { HeliconeTemplateManager } from "@helicone/prompts/templates";
+
+const template = "Hello {{hc:name:string}}, you are {{hc:age:number}} years old.";
+const variables = HeliconeTemplateManager.extractVariables(template);
+
+variables.forEach((v) => {
+  console.log(`${v.name}: ${v.type}`);
+});
+// Output:
+// name: string
+// age: number
+```
+
+## Working with Prompt Partials
+
+Prompt partials allow you to reuse content from other prompts.
+
+### Using Partials
+
+```typescript
+// Main prompt references another prompt's content
+const template = {
+  messages: [
+    {
+      role: "system",
+      content: "{{hcp:abc123:0:production}} You will help with {{hc:task:string}}.",
+    },
+  ],
+};
+
+// The SDK automatically fetches and substitutes the referenced prompt
+const { body } = await manager.getPromptBody({
+  prompt_id: "main-prompt",
+  inputs: {
+    task: "data analysis",
+  },
+});
+```
+
+### Extract Prompt Partials
+
+```typescript
+import { HeliconeTemplateManager } from "@helicone/prompts/templates";
+
+const template = "Use these instructions: {{hcp:abc123:0:production}}";
+const partials = HeliconeTemplateManager.extractPromptPartialVariables(template);
+
+partials.forEach((p) => {
+  console.log(`Prompt: ${p.prompt_id}, Index: ${p.index}, Env: ${p.environment}`);
+});
+```
+
+### Get Partial Substitution Value
+
+```typescript
+const sourceBody = {
+  messages: [
+    { role: "system", content: "Base instructions" },
+    { role: "user", content: "Example query" },
+  ],
+};
+
+const partialVariable = {
+  prompt_id: "abc123",
+  index: 0,
+  raw: "{{hcp:abc123:0}}",
+};
+
+const value = manager.getPromptPartialSubstitutionValue(
+  partialVariable,
+  sourceBody
+);
+
+console.log(value); // "Base instructions"
+```
+
+## Environment-Based Loading
+
+```typescript
+class PromptService {
+  private manager: HeliconePromptManager;
+  private environment: string;
+
+  constructor() {
+    this.manager = new HeliconePromptManager({
+      apiKey: process.env.HELICONE_API_KEY!,
+    });
+    this.environment = process.env.NODE_ENV || "production";
+  }
+
+  async loadPrompt(promptId: string, inputs: Record<string, any>) {
+    return await this.manager.getPromptBody({
+      prompt_id: promptId,
+      environment: this.environment,
+      inputs,
+    });
+  }
+}
+
+const promptService = new PromptService();
+const { body } = await promptService.loadPrompt("my-prompt", { name: "Alice" });
+```
+
+## Version-Specific Loading
+
+```typescript
+// Load specific version by ID
+const { body } = await manager.getPromptBody({
+  prompt_id: "my-prompt",
+  version_id: "550e8400-e29b-41d4-a716-446655440000",
+  inputs: { name: "Bob" },
+});
+
+// Or by version ID directly
+const rawBody = await manager.pullPromptBodyByVersionId(
+  "550e8400-e29b-41d4-a716-446655440000"
+);
+```
+
+## Merging with Additional Parameters
+
+Combine template prompts with runtime parameters:
+
+```typescript
+const rawPromptBody = await manager.pullPromptBody({
+  prompt_id: "my-prompt",
+});
+
+const { body, errors } = await manager.mergePromptBody(
+  {
+    prompt_id: "my-prompt",
+    inputs: { name: "Charlie" },
+    // Additional OpenAI parameters
+    temperature: 0.9,
+    max_tokens: 500,
+    messages: [
+      { role: "user", content: "Additional user message" },
+    ],
+  },
+  rawPromptBody
+);
+
+// body now contains:
+// - Original prompt messages with variables substituted
+// - Additional messages appended
+// - Runtime parameters override template defaults
+```
+
+## Advanced: Custom Variable Substitution
+
+```typescript
+import { HeliconeTemplateManager } from "@helicone/prompts/templates";
+
+const template = "Hello {{hc:name:string}}, you are {{hc:age:number}} years old.";
+
+const result = HeliconeTemplateManager.substituteVariables(
+  template,
+  { name: "Alice", age: 30 },
+  {} // prompt partial inputs
+);
+
+if (result.success) {
+  console.log(result.result); // "Hello Alice, you are 30 years old."
+} else {
+  console.error("Errors:", result.errors);
+}
+```
+
+## Advanced: JSON Variable Substitution
+
+For complex objects like tools or response formats:
+
+```typescript
+import { HeliconeTemplateManager } from "@helicone/prompts/templates";
+
+const toolDefinition = {
+  type: "function",
+  function: {
+    name: "{{hc:function_name:string}}",
+    description: "Process {{hc:data_type:string}} data",
+    parameters: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "number",
+          default: "{{hc:default_limit:number}}",
+        },
+      },
+    },
+  },
+};
+
+const result = HeliconeTemplateManager.substituteVariablesJSON(
+  toolDefinition,
+  {
+    function_name: "analyze_data",
+    data_type: "customer",
+    default_limit: 100,
+  }
+);
+
+if (result.success) {
+  console.log(result.result);
+  // {
+  //   type: "function",
+  //   function: {
+  //     name: "analyze_data",
+  //     description: "Process customer data",
+  //     parameters: {
+  //       type: "object",
+  //       properties: { limit: { type: "number", default: 100 } }
+  //     }
+  //   }
+  // }
+}
+```
+
+## Error Handling
+
+```typescript
+try {
+  const { body, errors } = await manager.getPromptBody({
+    prompt_id: "my-prompt",
+    inputs: { name: "David" },
+  });
+
+  if (errors.length > 0) {
+    // Handle variable validation errors
+    console.warn("Variable errors:", errors);
+    // You can still use the body, but some variables may not be substituted
+  }
+
+  const response = await openai.chat.completions.create(body);
+} catch (error) {
+  if (error instanceof Error) {
+    if (error.message.includes("Failed to get prompt")) {
+      console.error("Prompt not found or network error");
+    } else if (error.message.includes("No prompt ID provided")) {
+      console.error("Missing prompt_id parameter");
+    } else {
+      console.error("Unexpected error:", error);
+    }
+  }
+}
+```
+
+## Type Definitions
+
+```typescript
+import type {
+  HeliconePromptParams,
+  HeliconeChatCreateParams,
+  Prompt2025Version,
+  ValidationError,
+} from "@helicone/prompts/types";
+
+// Prompt parameters
+const params: HeliconePromptParams = {
+  prompt_id: "my-prompt",
+  version_id?: "uuid",
+  environment?: "production",
+  inputs?: Record<string, any>,
+};
+
+// Version metadata
+const version: Prompt2025Version = {
+  id: "uuid",
+  model: "gpt-4",
+  prompt_id: "my-prompt",
+  major_version: 1,
+  minor_version: 0,
+  commit_message: "Initial version",
+  environments: ["production"],
+  created_at: "2024-01-01T00:00:00Z",
+  s3_url: "https://...",
+};
+
+// Validation error
+const error: ValidationError = {
+  variable: "age",
+  expected: "number",
+  value: "twenty",
+};
+```
+
+## Complete Integration Example
+
+```typescript
+import { HeliconePromptManager } from "@helicone/prompts";
+import OpenAI from "openai";
+
+class ChatService {
+  private promptManager: HeliconePromptManager;
+  private openai: OpenAI;
+
+  constructor() {
+    this.promptManager = new HeliconePromptManager({
+      apiKey: process.env.HELICONE_API_KEY!,
+    });
+    this.openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY!,
+    });
+  }
+
+  async chat(promptId: string, userInputs: Record<string, any>) {
+    try {
+      // Load prompt with user inputs
+      const { body, errors } = await this.promptManager.getPromptBody({
+        prompt_id: promptId,
+        environment: process.env.NODE_ENV,
+        inputs: userInputs,
+      });
+
+      // Log any variable validation errors
+      if (errors.length > 0) {
+        console.warn("Variable validation errors:", errors);
+      }
+
+      // Call OpenAI with compiled prompt
+      const response = await this.openai.chat.completions.create(body);
+
+      return {
+        success: true,
+        content: response.choices[0]?.message?.content,
+        model: response.model,
+        usage: response.usage,
+      };
+    } catch (error) {
+      console.error("Chat error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+}
+
+// Usage
+const chatService = new ChatService();
+const result = await chatService.chat("customer-support", {
+  customer_name: "Alice",
+  issue_type: "billing",
+  account_tier: "premium",
+});
+
+if (result.success) {
+  console.log("Response:", result.content);
+} else {
+  console.error("Error:", result.error);
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="book" href="/prompts/overview">
+    Learn about prompt management concepts
+  </Card>
+  <Card title="Versioning" icon="code-branch" href="/prompts/versioning">
+    Manage prompt versions
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/prompts/deployment">
+    Deploy prompts to environments
+  </Card>
+  <Card title="API Reference" icon="brackets-curly" href="/api/prompts/create">
+    Explore the Prompts API
+  </Card>
+</CardGroup>

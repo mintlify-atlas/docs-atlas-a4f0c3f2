@@ -1,0 +1,120 @@
+---
+title: 'Get Prompt'
+description: 'Retrieve a specific prompt with its versions'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" default="POST">
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  `/v1/prompt/{promptId}/query`
+</ParamField>
+
+## Authentication
+
+This endpoint requires API key authentication. Include your API key in the request headers:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="promptId" type="string" required>
+  The unique identifier of the prompt
+</ParamField>
+
+## Request Body
+
+<ParamField body="timeFilter" type="object" required>
+  Time range to filter prompt usage
+  <ParamField body="start" type="string" required>
+    Start time in ISO 8601 format
+  </ParamField>
+  <ParamField body="end" type="string" required>
+    End time in ISO 8601 format
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  Prompt details
+  <ResponseField name="id" type="string">
+    Unique identifier for the prompt
+  </ResponseField>
+  <ResponseField name="user_defined_id" type="string">
+    User-defined identifier
+  </ResponseField>
+  <ResponseField name="description" type="string">
+    Prompt description
+  </ResponseField>
+  <ResponseField name="pretty_name" type="string">
+    Display name for the prompt
+  </ResponseField>
+  <ResponseField name="major_version" type="number">
+    Current major version number
+  </ResponseField>
+  <ResponseField name="latest_version_id" type="string">
+    ID of the latest prompt version
+  </ResponseField>
+  <ResponseField name="latest_model_used" type="string">
+    Most recently used model for this prompt
+  </ResponseField>
+  <ResponseField name="created_at" type="string">
+    Prompt creation timestamp
+  </ResponseField>
+  <ResponseField name="last_used" type="string">
+    Timestamp of last usage
+  </ResponseField>
+  <ResponseField name="versions" type="array">
+    Array of version IDs
+  </ResponseField>
+  <ResponseField name="metadata" type="object">
+    Additional metadata
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the request failed, null otherwise
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.helicone.ai/v1/prompt/prompt_abc123/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timeFilter": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": "2024-01-31T23:59:59Z"
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "data": {
+    "id": "prompt_abc123",
+    "user_defined_id": "customer-support-v1",
+    "description": "Customer support prompt template",
+    "pretty_name": "Customer Support",
+    "major_version": 2,
+    "latest_version_id": "pv_xyz789",
+    "latest_model_used": "gpt-4",
+    "created_at": "2024-01-01T10:00:00Z",
+    "last_used": "2024-01-30T15:30:00Z",
+    "versions": ["pv_xyz789", "pv_xyz788"],
+    "metadata": {
+      "department": "support"
+    }
+  },
+  "error": null
+}
+```

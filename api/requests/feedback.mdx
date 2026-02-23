@@ -1,0 +1,434 @@
+---
+title: 'Add Feedback'
+description: 'Add user feedback ratings to requests'
+---
+
+## Overview
+
+Add feedback ratings to requests to track user satisfaction and quality of LLM responses. Feedback can be used to identify problematic requests, improve prompts, and train evaluation models.
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  /v1/request/{requestId}/feedback
+</ParamField>
+
+## Authentication
+
+Requires API key authentication via the `Authorization` header:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="requestId" type="string" required>
+  The unique identifier of the request to add feedback to
+</ParamField>
+
+## Request Body
+
+<ParamField body="rating" type="boolean" required>
+  The feedback rating for the request
+  
+  - `true` - Positive feedback (thumbs up)
+  - `false` - Negative feedback (thumbs down)
+</ParamField>
+
+## Response
+
+Returns a success or error response.
+
+<ResponseField name="data" type="null">
+  Always `null` on success
+</ResponseField>
+
+<ResponseField name="error" type="string" nullable>
+  Error message if the request failed, otherwise `null`
+</ResponseField>
+
+## Examples
+
+### Positive Feedback
+
+Add a positive (thumbs up) rating:
+
+```bash
+curl -X POST "https://api.helicone.ai/v1/request/req_123abc/feedback" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rating": true
+  }'
+```
+
+### Negative Feedback
+
+Add a negative (thumbs down) rating:
+
+```bash
+curl -X POST "https://api.helicone.ai/v1/request/req_123abc/feedback" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rating": false
+  }'
+```
+
+### Using in Code
+
+<CodeGroup>
+
+```typescript TypeScript
+async function addFeedback(requestId: string, isPositive: boolean) {
+  const response = await fetch(
+    `https://api.helicone.ai/v1/request/${requestId}/feedback`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        rating: isPositive
+      })
+    }
+  );
+  
+  const result = await response.json();
+  
+  if (result.error) {
+    console.error('Failed to add feedback:', result.error);
+  } else {
+    console.log('Feedback added successfully');
+  }
+}
+
+// Add positive feedback
+await addFeedback('req_123abc', true);
+
+// Add negative feedback
+await addFeedback('req_456def', false);
+```
+
+```python Python
+import requests
+
+def add_feedback(request_id: str, is_positive: bool):
+    response = requests.post(
+        f'https://api.helicone.ai/v1/request/{request_id}/feedback',
+        headers={
+            'Authorization': 'Bearer YOUR_API_KEY',
+            'Content-Type': 'application/json'
+        },
+        json={'rating': is_positive}
+    )
+    
+    result = response.json()
+    
+    if result.get('error'):
+        print(f"Error: {result['error']}")
+    else:
+        print('Feedback added successfully')
+
+# Add positive feedback
+add_feedback('req_123abc', True)
+
+# Add negative feedback
+add_feedback('req_456def', False)
+```
+
+```javascript JavaScript
+const addFeedback = async (requestId, isPositive) => {
+  const response = await fetch(
+    `https://api.helicone.ai/v1/request/${requestId}/feedback`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        rating: isPositive
+      })
+    }
+  );
+  
+  const result = await response.json();
+  return result;
+};
+
+// Usage
+await addFeedback('req_123abc', true);  // Positive
+await addFeedback('req_456def', false); // Negative
+```
+
+</CodeGroup>
+
+## Response Examples
+
+### Success Response
+
+```json
+{
+  "data": null,
+  "error": null
+}
+```
+
+### Error Response
+
+```json
+{
+  "data": null,
+  "error": "Request not found"
+}
+```
+
+## Integration Examples
+
+### React Component
+
+Implement feedback buttons in your UI:
+
+```tsx
+import { useState } from 'react';
+
+function FeedbackButtons({ requestId }: { requestId: string }) {
+  const [feedback, setFeedback] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleFeedback = async (rating: boolean) => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch(
+        `https://api.helicone.ai/v1/request/${requestId}/feedback`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.HELICONE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ rating })
+        }
+      );
+      
+      const result = await response.json();
+      
+      if (!result.error) {
+        setFeedback(rating);
+      }
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="feedback-buttons">
+      <button
+        onClick={() => handleFeedback(true)}
+        disabled={loading || feedback !== null}
+        className={feedback === true ? 'active' : ''}
+      >
+        👍 Helpful
+      </button>
+      <button
+        onClick={() => handleFeedback(false)}
+        disabled={loading || feedback !== null}
+        className={feedback === false ? 'active' : ''}
+      >
+        👎 Not Helpful
+      </button>
+    </div>
+  );
+}
+```
+
+### CLI Tool
+
+Add feedback from the command line:
+
+```bash
+#!/bin/bash
+
+# feedback.sh - Add feedback to a request
+
+REQUEST_ID=$1
+RATING=$2  # "positive" or "negative"
+
+if [ "$RATING" = "positive" ]; then
+  RATING_VALUE="true"
+elif [ "$RATING" = "negative" ]; then
+  RATING_VALUE="false"
+else
+  echo "Usage: $0 <request_id> <positive|negative>"
+  exit 1
+fi
+
+curl -X POST "https://api.helicone.ai/v1/request/$REQUEST_ID/feedback" \
+  -H "Authorization: Bearer $HELICONE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"rating\": $RATING_VALUE}"
+```
+
+## Use Cases
+
+### User Feedback Collection
+
+Collect end-user feedback on AI responses:
+
+```typescript
+// After showing AI response to user
+function showResponseWithFeedback(response: string, requestId: string) {
+  // Display response
+  displayResponse(response);
+  
+  // Add feedback buttons
+  addFeedbackButtons({
+    onThumbsUp: () => addFeedback(requestId, true),
+    onThumbsDown: () => addFeedback(requestId, false)
+  });
+}
+```
+
+### A/B Testing
+
+Compare different prompts or models:
+
+```typescript
+async function runABTest() {
+  // Test variant A
+  const responseA = await callLLM(promptA);
+  const feedbackA = await collectUserFeedback();
+  await addFeedback(responseA.requestId, feedbackA);
+  
+  // Test variant B
+  const responseB = await callLLM(promptB);
+  const feedbackB = await collectUserFeedback();
+  await addFeedback(responseB.requestId, feedbackB);
+  
+  // Analyze feedback rates for each variant
+  const resultsA = await queryRequests({ promptId: promptA.id });
+  const resultsB = await queryRequests({ promptId: promptB.id });
+  
+  const positiveRateA = calculatePositiveRate(resultsA);
+  const positiveRateB = calculatePositiveRate(resultsB);
+}
+```
+
+### Quality Monitoring
+
+Automatically flag low-quality responses:
+
+```typescript
+async function monitorQuality() {
+  // Query recent requests with negative feedback
+  const problematicRequests = await queryRequests({
+    filter: {
+      feedback: {
+        rating: { equals: false }
+      }
+    },
+    sort: { created_at: 'desc' },
+    limit: 100
+  });
+  
+  // Alert team if negative feedback rate is high
+  const negativeRate = problematicRequests.length / totalRequests;
+  if (negativeRate > 0.2) {
+    await sendAlert('High negative feedback rate detected!');
+  }
+}
+```
+
+### Training Data Generation
+
+Use feedback to create training datasets:
+
+```typescript
+async function exportTrainingData() {
+  // Get requests with positive feedback
+  const positiveExamples = await queryRequests({
+    filter: {
+      feedback: { rating: { equals: true } }
+    },
+    includeInputs: true,
+    limit: 1000
+  });
+  
+  // Get requests with negative feedback
+  const negativeExamples = await queryRequests({
+    filter: {
+      feedback: { rating: { equals: false } }
+    },
+    includeInputs: true,
+    limit: 1000
+  });
+  
+  // Export for fine-tuning or evaluation
+  await exportToFile(positiveExamples, 'positive_examples.jsonl');
+  await exportToFile(negativeExamples, 'negative_examples.jsonl');
+}
+```
+
+## Query Requests by Feedback
+
+You can filter requests by feedback using the query endpoint:
+
+```bash
+# Get all requests with positive feedback
+curl -X POST "https://api.helicone.ai/v1/request/query" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "feedback": {
+        "rating": {
+          "equals": true
+        }
+      }
+    },
+    "limit": 100
+  }'
+
+# Get all requests with negative feedback
+curl -X POST "https://api.helicone.ai/v1/request/query" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "feedback": {
+        "rating": {
+          "equals": false
+        }
+      }
+    },
+    "limit": 100
+  }'
+```
+
+## Notes
+
+- Feedback can be updated by sending another request with a different rating
+- Only one feedback rating per request is stored (most recent wins)
+- Feedback is immediately reflected in query results and analytics
+- Use feedback in combination with custom properties for more detailed tracking
+- Feedback data is available in exports and webhooks
+- Consider implementing a feedback collection UI that's easy for users to access
+
+## Best Practices
+
+1. **Make feedback easy**: Place feedback buttons prominently in your UI
+2. **Explain context**: Tell users what the feedback is for and how it helps
+3. **Don't overdo it**: Only ask for feedback on important interactions
+4. **Act on feedback**: Regularly review negative feedback and improve prompts
+5. **Track trends**: Monitor feedback rates over time to measure improvements
+6. **Combine signals**: Use feedback alongside evaluation scores for better insights

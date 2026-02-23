@@ -1,0 +1,283 @@
+---
+title: "Gateway Quickstart"
+sidebarTitle: "Quickstart"
+description: "Make your first request through the AI Gateway in under 5 minutes"
+---
+
+Get started with the AI Gateway and access 100+ LLM models through a single OpenAI-compatible API.
+
+<Steps>
+
+<Step title="Get your Helicone API key">
+
+1. [Sign up for Helicone](https://helicone.ai/signup) (free account)
+2. Navigate to [API Keys](https://us.helicone.ai/settings/api-keys)
+3. Click **Create API Key**
+4. Copy your key and save it as `HELICONE_API_KEY` in your environment
+
+<Note>
+  Your Helicone API key is all you need - no provider API keys required when using credits.
+</Note>
+
+</Step>
+
+<Step title="Install the OpenAI SDK">
+
+The gateway uses the OpenAI SDK format, so install it if you haven't already:
+
+<CodeGroup>
+```bash npm
+npm install openai
+```
+
+```bash pip
+pip install openai
+```
+
+```bash yarn
+yarn add openai
+```
+</CodeGroup>
+
+</Step>
+
+<Step title="Make your first request">
+
+Change just two lines from standard OpenAI code:
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { OpenAI } from "openai";
+
+    const client = new OpenAI({
+      baseURL: "https://ai-gateway.helicone.ai",
+      apiKey: process.env.HELICONE_API_KEY,
+    });
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "user", content: "What is the capital of France?" }
+      ],
+    });
+
+    console.log(response.choices[0].message.content);
+    ```
+  </Tab>
+  
+  <Tab title="Python">
+    ```python
+    from openai import OpenAI
+    import os
+
+    client = OpenAI(
+        base_url="https://ai-gateway.helicone.ai",
+        api_key=os.getenv("HELICONE_API_KEY")
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": "What is the capital of France?"}
+        ]
+    )
+
+    print(response.choices[0].message.content)
+    ```
+  </Tab>
+
+  <Tab title="cURL">
+    ```bash
+    curl https://ai-gateway.helicone.ai/v1/chat/completions \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $HELICONE_API_KEY" \
+      -d '{
+        "model": "gpt-4o-mini",
+        "messages": [
+          { "role": "user", "content": "What is the capital of France?" }
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+</Step>
+
+<Step title="View your request in the dashboard">
+
+Within seconds, your request appears in the [Helicone Dashboard](https://us.helicone.ai/requests):
+
+- See the full request and response
+- Track costs and token usage
+- Monitor latency and performance
+- Add custom metadata and properties
+
+<Frame>
+  <img src="/images/gateway/requests-dashboard.png" alt="Helicone requests dashboard showing logged gateway requests" />
+</Frame>
+
+</Step>
+
+</Steps>
+
+## Try Different Models
+
+The gateway supports 100+ models. Just change the model name:
+
+<CodeGroup>
+```typescript OpenAI GPT-4o
+model: "gpt-4o"
+```
+
+```typescript Anthropic Claude
+model: "claude-sonnet-4"
+```
+
+```typescript Google Gemini
+model: "gemini-2.0-flash"
+```
+
+```typescript Meta Llama
+model: "llama-3-70b"
+```
+
+```typescript Mistral
+model: "mistral-large"
+```
+
+```typescript DeepSeek
+model: "deepseek-chat"
+```
+</CodeGroup>
+
+[Browse all available models →](https://helicone.ai/models)
+
+## Using Your Own API Keys (BYOK)
+
+Want to use your own provider API keys instead of credits?
+
+<Steps>
+
+<Step title="Add your provider keys">
+
+1. Go to [Provider Settings](https://us.helicone.ai/providers)
+2. Select your provider (OpenAI, Anthropic, etc.)
+3. Add your API key
+4. Save
+
+</Step>
+
+<Step title="Make requests as usual">
+
+No code changes needed - the gateway automatically uses your keys:
+
+```typescript
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+// Uses your OpenAI API key automatically
+```
+
+</Step>
+
+</Steps>
+
+<Note>
+  When you provide your own keys, the gateway tries them first. If they fail, it automatically falls back to Helicone's managed keys (credits) for reliability.
+</Note>
+
+## Common Use Cases
+
+### Streaming Responses
+
+The gateway fully supports streaming:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [{ role: "user", content: "Tell me a story" }],
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content || "");
+}
+```
+
+### Multi-provider Access
+
+Switch providers by specifying them in the model string:
+
+```typescript
+// Use Claude through Anthropic's API
+model: "claude-sonnet-4/anthropic"
+
+// Use Claude through AWS Bedrock
+model: "claude-sonnet-4/bedrock"
+
+// Use Claude through Vertex AI
+model: "claude-sonnet-4/vertex"
+
+// Let gateway choose the best provider
+model: "claude-sonnet-4"
+```
+
+### Automatic Fallbacks
+
+Specify fallback chains for maximum reliability:
+
+```typescript
+const response = await client.chat.completions.create({
+  model: "gpt-4o-mini/openai,gpt-4o-mini/azure,gpt-4o-mini",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+// Tries OpenAI → Azure → All other providers
+```
+
+[Learn more about fallback strategies →](/gateway/fallbacks)
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Provider Routing" icon="route" href="/gateway/provider-routing">
+  Learn how the gateway intelligently routes requests
+</Card>
+<Card title="Automatic Fallbacks" icon="shield-halved" href="/gateway/fallbacks">
+  Build resilient apps with provider failover
+</Card>
+<Card title="Prompt Management" icon="wand-magic-sparkles" href="/gateway/prompt-integration">
+  Deploy prompts without code changes
+</Card>
+<Card title="Advanced Features" icon="sliders" href="/features/advanced-usage/caching">
+  Explore caching, rate limits, and security
+</Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Authentication failed (401)">
+    - Check that you're using your **Helicone API key**, not an OpenAI key
+    - Verify the key is set correctly in your environment: `echo $HELICONE_API_KEY`
+    - Generate a new key at [API Keys](https://us.helicone.ai/settings/api-keys)
+  </Accordion>
+
+  <Accordion title="Model not found">
+    - Check the [Model Registry](https://helicone.ai/models) for correct model names
+    - Model names are case-sensitive: use `gpt-4o-mini` not `GPT-4o-mini`
+    - Some models require BYOK (e.g., Azure-specific deployments)
+  </Accordion>
+
+  <Accordion title="Request not showing in dashboard">
+    - Requests appear within 2-3 seconds (check for errors in your code)
+    - Verify you're using `https://ai-gateway.helicone.ai` as the base URL
+    - Check you're logged into the correct Helicone account
+  </Accordion>
+
+  <Accordion title="Insufficient credits error">
+    - Add credits at [Billing Settings](https://us.helicone.ai/settings/billing)
+    - Or add your provider API keys at [Provider Settings](https://us.helicone.ai/providers)
+  </Accordion>
+</AccordionGroup>

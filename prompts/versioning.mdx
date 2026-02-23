@@ -1,0 +1,251 @@
+---
+title: 'Prompt Versioning'
+description: 'Track changes, create versions, and manage your prompt evolution'
+---
+
+## Version Structure
+
+Helicone uses semantic versioning for prompts with major and minor versions:
+
+- **Major versions** (1.0, 2.0, 3.0) - Significant changes or breaking updates
+- **Minor versions** (1.1, 1.2, 1.3) - Incremental improvements within a major version
+
+```
+Prompt: customer-support-agent
+├── v1.0 - Initial version
+├── v1.1 - Added more context
+├── v1.2 - Refined tone
+├── v2.0 - Complete rewrite with new structure
+└── v2.1 - Bug fix for edge cases
+```
+
+## Creating Versions
+
+### Via API
+
+Create a new version with a commit message:
+
+```typescript
+import { getJawnClient } from "./lib/clients/jawn";
+
+const jawn = getJawnClient(orgId);
+
+const response = await jawn.POST("/v1/prompt-2025/update", {
+  body: {
+    promptId: "your-prompt-id",
+    promptVersionId: "current-version-id",
+    newMajorVersion: false, // true for major, false for minor
+    commitMessage: "Improved system instructions for better accuracy",
+    promptBody: {
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant specialized in {{hc:domain:string}}.",
+        },
+        {
+          role: "user",
+          content: "{{hc:user_query:string}}",
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1000,
+    },
+  },
+});
+```
+
+### Version Metadata
+
+Each version includes:
+
+```typescript
+interface Prompt2025Version {
+  id: string;                  // Unique version ID
+  model: string;               // LLM model (e.g., "gpt-4")
+  prompt_id: string;           // Parent prompt ID
+  major_version: number;       // Major version number
+  minor_version: number;       // Minor version number
+  commit_message: string;      // Description of changes
+  environments?: string[];     // Deployed environments
+  created_at: string;          // ISO timestamp
+  s3_url?: string;            // S3 location of prompt body
+}
+```
+
+## Querying Versions
+
+### Get All Versions
+
+```typescript
+const response = await jawn.POST("/v1/prompt-2025/query/versions", {
+  body: {
+    promptId: "your-prompt-id",
+  },
+});
+
+const versions = response.data?.data || [];
+versions.forEach((version) => {
+  console.log(`v${version.major_version}.${version.minor_version}: ${version.commit_message}`);
+});
+```
+
+### Get Specific Version
+
+```typescript
+const response = await jawn.POST("/v1/prompt-2025/query/version", {
+  body: {
+    promptVersionId: "version-id",
+  },
+});
+
+const version = response.data?.data;
+```
+
+### Get Production Version
+
+```typescript
+const response = await jawn.POST("/v1/prompt-2025/query/production-version", {
+  body: {
+    promptId: "your-prompt-id",
+  },
+});
+
+const productionVersion = response.data?.data;
+```
+
+## Comparing Versions
+
+The Helicone UI allows you to compare versions side-by-side:
+
+1. Navigate to your prompt in the dashboard
+2. Select two versions to compare
+3. View diff highlighting changes in:
+   - Messages and content
+   - Model parameters (temperature, max_tokens, etc.)
+   - Tools and function definitions
+   - Variables and their types
+
+### Version Counts
+
+```typescript
+const response = await jawn.POST("/v1/prompt-2025/query/total-versions", {
+  body: {
+    promptId: "your-prompt-id",
+  },
+});
+
+const counts = response.data?.data;
+// { totalVersions: 15, majorVersions: 3 }
+```
+
+## Retrieving Version Body
+
+Get the full prompt body for a specific version:
+
+```typescript
+const response = await jawn.GET("/v1/prompt-2025/{promptVersionId}/prompt-body", {
+  params: {
+    path: {
+      promptVersionId: "version-id",
+    },
+  },
+});
+
+const promptBody = response.data?.data;
+// Returns the complete prompt with messages, tools, parameters
+```
+
+## Rollback Strategy
+
+To rollback to a previous version:
+
+### 1. Identify the Target Version
+
+```typescript
+const versions = await jawn.POST("/v1/prompt-2025/query/versions", {
+  body: { promptId: "your-prompt-id" },
+});
+
+const targetVersion = versions.data?.data?.find(
+  (v) => v.major_version === 1 && v.minor_version === 5
+);
+```
+
+### 2. Deploy to Production
+
+```typescript
+await jawn.POST("/v1/prompt-2025/update/environment", {
+  body: {
+    promptId: "your-prompt-id",
+    promptVersionId: targetVersion.id,
+    environment: "production",
+  },
+});
+```
+
+### 3. Verify the Change
+
+```typescript
+const prodVersion = await jawn.POST("/v1/prompt-2025/query/environment-version", {
+  body: {
+    promptId: "your-prompt-id",
+    environment: "production",
+  },
+});
+
+console.log(`Rolled back to v${prodVersion.data?.data?.major_version}.${prodVersion.data?.data?.minor_version}`);
+```
+
+## Best Practices
+
+### Commit Messages
+
+Write clear, descriptive commit messages:
+
+- **Good**: "Improved system instructions to reduce hallucinations in medical queries"
+- **Bad**: "Updated prompt"
+
+### Major vs Minor Versions
+
+Use **major versions** for:
+- Complete prompt rewrites
+- Changing the model (e.g., GPT-3.5 → GPT-4)
+- Breaking changes to variables or structure
+- New tool/function definitions
+
+Use **minor versions** for:
+- Refining wording or instructions
+- Adjusting temperature or max_tokens
+- Adding examples or context
+- Bug fixes
+
+### Version Testing
+
+Always test new versions before deploying to production:
+
+1. Create a new version
+2. Deploy to `development` environment
+3. Run integration tests
+4. Deploy to `staging` for QA
+5. Monitor metrics and quality
+6. Deploy to `production` when validated
+
+### Audit Trail
+
+Version history provides an audit trail:
+- Track who created each version
+- Understand why changes were made
+- Correlate prompt changes with performance metrics
+- Debug issues by comparing current vs previous versions
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="rocket" href="/prompts/deployment">
+    Learn how to deploy versions to environments
+  </Card>
+  <Card title="SDK Integration" icon="code" href="/prompts/sdk-integration">
+    Use versions in your application code
+  </Card>
+</CardGroup>

@@ -1,0 +1,405 @@
+---
+title: 'Get Request'
+description: 'Retrieve a single request by ID'
+---
+
+## Overview
+
+Retrieve detailed information about a specific request using its unique identifier. This endpoint returns comprehensive data about both the request and response, including metadata, token usage, costs, and custom properties.
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  GET
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  /v1/request/{requestId}
+</ParamField>
+
+## Authentication
+
+Requires API key authentication via the `Authorization` header:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="requestId" type="string" required>
+  The unique identifier of the request to retrieve
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="includeBody" type="boolean" default="false">
+  Whether to include the full request and response bodies in the response. 
+  
+  - `true` - Includes complete request/response payloads
+  - `false` - Returns metadata only (faster, smaller response)
+</ParamField>
+
+## Response
+
+Returns a single request object with detailed information.
+
+<ResponseField name="data" type="object">
+  The request object
+  
+  <Expandable title="Request Object Properties">
+    <ResponseField name="request_id" type="string">
+      Unique identifier for the request
+    </ResponseField>
+    
+    <ResponseField name="request_created_at" type="string">
+      Timestamp when the request was created (ISO 8601 format)
+    </ResponseField>
+    
+    <ResponseField name="request_body" type="object">
+      The complete request payload sent to the LLM provider (if `includeBody=true`)
+    </ResponseField>
+    
+    <ResponseField name="request_path" type="string">
+      API endpoint path (e.g., "/v1/chat/completions")
+    </ResponseField>
+    
+    <ResponseField name="request_user_id" type="string" nullable>
+      User identifier associated with the request
+    </ResponseField>
+    
+    <ResponseField name="request_properties" type="object" nullable>
+      Custom properties attached to the request at creation time
+    </ResponseField>
+    
+    <ResponseField name="request_model" type="string" nullable>
+      Model specified in the original API request
+    </ResponseField>
+    
+    <ResponseField name="response_id" type="string" nullable>
+      Unique identifier for the response
+    </ResponseField>
+    
+    <ResponseField name="response_created_at" type="string" nullable>
+      Timestamp when the response was received (ISO 8601 format)
+    </ResponseField>
+    
+    <ResponseField name="response_body" type="object">
+      The complete response payload from the LLM provider (if `includeBody=true`)
+    </ResponseField>
+    
+    <ResponseField name="response_status" type="number">
+      HTTP status code of the response (e.g., 200, 400, 500)
+    </ResponseField>
+    
+    <ResponseField name="response_model" type="string" nullable>
+      Actual model used by the provider (may differ from requested model)
+    </ResponseField>
+    
+    <ResponseField name="model_override" type="string" nullable>
+      Model override applied via Helicone settings
+    </ResponseField>
+    
+    <ResponseField name="provider" type="string">
+      LLM provider name (e.g., "OPENAI", "ANTHROPIC", "AZURE", "GOOGLE")
+    </ResponseField>
+    
+    <ResponseField name="model" type="string">
+      Resolved model identifier
+    </ResponseField>
+    
+    <ResponseField name="target_url" type="string">
+      The actual URL the request was sent to
+    </ResponseField>
+    
+    <ResponseField name="delay_ms" type="number" nullable>
+      Total request latency in milliseconds (from request to response)
+    </ResponseField>
+    
+    <ResponseField name="time_to_first_token" type="number" nullable>
+      Time to first token in milliseconds (for streaming responses)
+    </ResponseField>
+    
+    <ResponseField name="total_tokens" type="number" nullable>
+      Total tokens used (prompt + completion)
+    </ResponseField>
+    
+    <ResponseField name="prompt_tokens" type="number" nullable>
+      Number of tokens in the prompt/input
+    </ResponseField>
+    
+    <ResponseField name="completion_tokens" type="number" nullable>
+      Number of tokens in the completion/output
+    </ResponseField>
+    
+    <ResponseField name="prompt_cache_write_tokens" type="number" nullable>
+      Tokens written to prompt cache (for providers that support caching)
+    </ResponseField>
+    
+    <ResponseField name="prompt_cache_read_tokens" type="number" nullable>
+      Tokens read from prompt cache
+    </ResponseField>
+    
+    <ResponseField name="reasoning_tokens" type="number" nullable>
+      Reasoning tokens used (for models like o1)
+    </ResponseField>
+    
+    <ResponseField name="prompt_audio_tokens" type="number" nullable>
+      Audio tokens in the prompt (for multimodal models)
+    </ResponseField>
+    
+    <ResponseField name="completion_audio_tokens" type="number" nullable>
+      Audio tokens in the completion (for multimodal models)
+    </ResponseField>
+    
+    <ResponseField name="cost" type="number" nullable>
+      Estimated cost of the request in USD
+    </ResponseField>
+    
+    <ResponseField name="costUSD" type="number" nullable>
+      Cost in USD (same as cost field)
+    </ResponseField>
+    
+    <ResponseField name="prompt_id" type="string" nullable>
+      ID of the prompt template used (if applicable)
+    </ResponseField>
+    
+    <ResponseField name="prompt_version" type="string" nullable>
+      Version of the prompt template used
+    </ResponseField>
+    
+    <ResponseField name="feedback_id" type="string" nullable>
+      ID of the feedback record (if feedback was provided)
+    </ResponseField>
+    
+    <ResponseField name="feedback_rating" type="boolean" nullable>
+      User feedback rating (true for positive, false for negative)
+    </ResponseField>
+    
+    <ResponseField name="feedback_created_at" type="string" nullable>
+      Timestamp when feedback was created
+    </ResponseField>
+    
+    <ResponseField name="scores" type="object" nullable>
+      Evaluation scores as key-value pairs (e.g., `{"accuracy": 0.95}`)
+    </ResponseField>
+    
+    <ResponseField name="properties" type="object">
+      All custom properties associated with the request
+    </ResponseField>
+    
+    <ResponseField name="asset_ids" type="array" nullable>
+      Array of asset IDs associated with the request (e.g., images, files)
+    </ResponseField>
+    
+    <ResponseField name="asset_urls" type="object" nullable>
+      Map of asset IDs to their signed URLs
+    </ResponseField>
+    
+    <ResponseField name="cache_enabled" type="boolean">
+      Whether caching was enabled for this request
+    </ResponseField>
+    
+    <ResponseField name="cache_reference_id" type="string" nullable>
+      Reference ID for cached responses
+    </ResponseField>
+    
+    <ResponseField name="country_code" type="string" nullable>
+      Country code of the request origin (ISO 3166-1 alpha-2)
+    </ResponseField>
+    
+    <ResponseField name="helicone_user" type="string" nullable>
+      Helicone user identifier
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string">
+      Last update timestamp for the request record
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="string" nullable>
+  Error message if the request failed
+</ResponseField>
+
+## Examples
+
+### Basic Request
+
+Retrieve a request without body data:
+
+```bash
+curl -X GET "https://api.helicone.ai/v1/request/req_123abc" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Request with Full Body
+
+Retrieve a request including complete request and response bodies:
+
+```bash
+curl -X GET "https://api.helicone.ai/v1/request/req_123abc?includeBody=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Using in Code
+
+<CodeGroup>
+
+```typescript TypeScript
+const response = await fetch(
+  'https://api.helicone.ai/v1/request/req_123abc?includeBody=true',
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  }
+);
+
+const result = await response.json();
+
+if (result.data) {
+  console.log('Request Model:', result.data.model);
+  console.log('Total Tokens:', result.data.total_tokens);
+  console.log('Cost:', result.data.cost);
+  console.log('Latency:', result.data.delay_ms, 'ms');
+}
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://api.helicone.ai/v1/request/req_123abc',
+    params={'includeBody': True},
+    headers={'Authorization': 'Bearer YOUR_API_KEY'}
+)
+
+result = response.json()
+
+if result.get('data'):
+    request = result['data']
+    print(f"Model: {request['model']}")
+    print(f"Tokens: {request['total_tokens']}")
+    print(f"Cost: ${request['cost']}")
+    print(f"Latency: {request['delay_ms']}ms")
+```
+
+```bash cURL
+curl -X GET "https://api.helicone.ai/v1/request/req_123abc?includeBody=true" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  | jq '.data | {model, total_tokens, cost, delay_ms}'
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "data": {
+    "request_id": "req_123abc",
+    "request_created_at": "2024-01-15T10:30:00.000Z",
+    "request_path": "/v1/chat/completions",
+    "request_model": "gpt-4",
+    "request_user_id": "user_456",
+    "request_properties": {
+      "environment": "production",
+      "version": "1.2.3"
+    },
+    "request_body": {
+      "model": "gpt-4",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the capital of France?"
+        }
+      ],
+      "temperature": 0.7
+    },
+    "response_id": "res_789def",
+    "response_created_at": "2024-01-15T10:30:02.341Z",
+    "response_status": 200,
+    "response_model": "gpt-4-0613",
+    "response_body": {
+      "id": "chatcmpl-123",
+      "object": "chat.completion",
+      "created": 1705317002,
+      "model": "gpt-4-0613",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The capital of France is Paris."
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 15,
+        "completion_tokens": 8,
+        "total_tokens": 23
+      }
+    },
+    "provider": "OPENAI",
+    "model": "gpt-4-0613",
+    "target_url": "https://api.openai.com/v1/chat/completions",
+    "delay_ms": 2341,
+    "time_to_first_token": 234,
+    "total_tokens": 23,
+    "prompt_tokens": 15,
+    "completion_tokens": 8,
+    "cost": 0.00069,
+    "costUSD": 0.00069,
+    "feedback_rating": true,
+    "scores": {
+      "accuracy": 0.95
+    },
+    "properties": {
+      "environment": "production",
+      "version": "1.2.3"
+    },
+    "cache_enabled": false,
+    "updated_at": "2024-01-15T10:30:02.500Z"
+  },
+  "error": null
+}
+```
+
+## Error Responses
+
+### Request Not Found
+
+```json
+{
+  "data": null,
+  "error": "Request not found"
+}
+```
+
+### Unauthorized
+
+```json
+{
+  "data": null,
+  "error": "Unauthorized: Invalid API key"
+}
+```
+
+## Use Cases
+
+- **Debug specific requests**: Investigate issues with particular API calls
+- **Audit trail**: Review the complete history of a request and response
+- **Cost analysis**: Check token usage and costs for specific requests
+- **Performance monitoring**: Analyze latency and time-to-first-token metrics
+- **Quality assurance**: Review requests with feedback or evaluation scores
+- **Compliance**: Export specific requests for compliance or auditing purposes
+
+## Notes
+
+- The `includeBody` parameter significantly increases response size but is necessary for debugging
+- Request bodies may contain sensitive data - ensure proper access controls
+- Asset URLs (if present) are pre-signed and time-limited
+- The `cost` field is calculated based on token usage and current provider pricing
+- Some fields may be `null` depending on the request type and provider

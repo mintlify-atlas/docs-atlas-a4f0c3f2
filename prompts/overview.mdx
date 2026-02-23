@@ -1,0 +1,152 @@
+---
+title: 'Prompt Management Overview'
+description: 'Centralize, version, and deploy your LLM prompts without code changes'
+---
+
+## What is Prompt Management?
+
+Helicone's Prompt Management system allows you to store, version, and deploy your LLM prompts independently from your application code. Instead of hardcoding prompts in your codebase, you can manage them through the Helicone platform and pull them dynamically at runtime.
+
+## Key Capabilities
+
+### Version Control
+
+Every prompt change creates a new version with:
+- **Major and minor versioning** (e.g., v1.0, v1.1, v2.0)
+- **Commit messages** to track what changed and why
+- **Version history** to compare and rollback changes
+- **Environment tagging** to deploy specific versions to dev, staging, or production
+
+### Dynamic Loading
+
+Load prompts at runtime using the `@helicone/prompts` SDK:
+
+```typescript
+import { HeliconePromptManager } from "@helicone/prompts";
+
+const manager = new HeliconePromptManager({
+  apiKey: process.env.HELICONE_API_KEY!,
+});
+
+const { body } = await manager.getPromptBody({
+  prompt_id: "your-prompt-id",
+  inputs: {
+    name: "Alice",
+    context: "product documentation",
+  },
+});
+```
+
+### Variable Substitution
+
+Prompts support typed template variables using the `{{hc:variable_name:type}}` syntax:
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant for {{hc:company:string}}."
+    },
+    {
+      "role": "user",
+      "content": "My age is {{hc:age:number}}. Can you help with {{hc:task:string}}?"
+    }
+  ]
+}
+```
+
+Supported types:
+- `string` - Text values
+- `number` - Numeric values
+- `boolean` - True/false values
+
+### Prompt Partials
+
+Reuse content from other prompts using the `{{hcp:prompt_id:index:environment}}` syntax:
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "{{hcp:abc123:0:production}} Additional context here."
+    }
+  ]
+}
+```
+
+This allows you to:
+- Share common instructions across multiple prompts
+- Update shared content in one place
+- Compose complex prompts from reusable components
+
+## Benefits
+
+### Deploy Without Code Changes
+
+Update your prompts in production without:
+- Creating pull requests
+- Running CI/CD pipelines
+- Redeploying your application
+- Downtime
+
+### Environment-Specific Prompts
+
+Deploy different versions to different environments:
+
+```typescript
+// Development environment
+const devPrompt = await manager.getPromptBody({
+  prompt_id: "my-prompt",
+  environment: "development",
+});
+
+// Production environment
+const prodPrompt = await manager.getPromptBody({
+  prompt_id: "my-prompt",
+  environment: "production",
+});
+```
+
+### Collaboration and Review
+
+- Team members can iterate on prompts in the Helicone UI
+- Track who made what changes and when
+- Compare versions side-by-side
+- Rollback to previous versions if needed
+
+### Separation of Concerns
+
+- **Developers** manage application logic and infrastructure
+- **Prompt engineers** optimize prompts without touching code
+- **Product teams** can A/B test different prompt strategies
+
+## Architecture
+
+Prompts are stored in:
+1. **PostgreSQL** - Metadata (versions, environments, commit messages)
+2. **S3** - Full prompt bodies (messages, tools, parameters)
+
+When you request a prompt:
+1. The SDK fetches version metadata from Helicone API
+2. The prompt body is retrieved from S3 via signed URL
+3. Variables are substituted with your input values
+4. The compiled prompt is merged with any additional parameters
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Versioning" icon="code-branch" href="/prompts/versioning">
+    Learn how to create and manage prompt versions
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/prompts/deployment">
+    Deploy prompts to different environments
+  </Card>
+  <Card title="SDK Integration" icon="code" href="/prompts/sdk-integration">
+    Integrate prompts into your application
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/prompts/create">
+    Explore the Prompts API
+  </Card>
+</CardGroup>

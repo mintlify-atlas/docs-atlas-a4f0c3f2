@@ -1,0 +1,484 @@
+---
+title: "Monitoring AI Agents with Sessions"
+sidebarTitle: "Monitoring AI Agents"
+description: "Step-by-step tutorial for tracking multi-step AI agent workflows with Helicone Sessions"
+---
+
+AI agents make multiple LLM calls, tool invocations, and database queries to complete tasks. This tutorial shows you how to use Helicone Sessions to monitor entire agent workflows from start to finish.
+
+## What You'll Build
+
+A monitored AI research agent that:
+- Takes a user query
+- Searches multiple sources
+- Synthesizes findings
+- Generates a report
+
+All tracked as a single session with hierarchical traces.
+
+## Prerequisites
+
+- Helicone API key ([get one here](https://helicone.ai))
+- OpenAI API key
+- Node.js 18+ or Python 3.8+
+
+## Step 1: Set Up Your Project
+
+<CodeGroup>
+```bash Node.js
+npm install openai uuid
+```
+
+```bash Python
+pip install openai helicone
+```
+</CodeGroup>
+
+## Step 2: Configure the Helicone Client
+
+<CodeGroup>
+```typescript Node.js
+import { OpenAI } from "openai";
+import { randomUUID } from "crypto";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+```
+
+```python Python
+from openai import OpenAI
+import os
+import uuid
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    }
+)
+```
+</CodeGroup>
+
+## Step 3: Create Session Structure
+
+Define your agent's workflow hierarchy:
+
+```typescript
+const sessionId = randomUUID(); // Unique ID for this research task
+const sessionName = "Research Agent"; // Groups all research tasks together
+
+// Path hierarchy shows agent workflow:
+// /research              - Top level
+// /research/query        - Query analysis
+// /research/search       - Web searches
+// /research/synthesize   - Combining results
+// /research/report       - Final output
+```
+
+<Note>
+Use descriptive paths that represent the **type of work**, not the order. Multiple requests can use the same path if they do the same conceptual task.
+</Note>
+
+## Step 4: Implement Agent Steps
+
+<Steps>
+<Step title="Query Analysis">
+First, have the agent analyze the user's query:
+
+<CodeGroup>
+```typescript Node.js
+async function analyzeQuery(query: string, sessionId: string) {
+  const response = await client.chat.completions.create(
+    {
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Analyze the research query and identify key topics to investigate."
+        },
+        { role: "user", content: query }
+      ],
+    },
+    {
+      headers: {
+        "Helicone-Session-Id": sessionId,
+        "Helicone-Session-Path": "/research/query",
+        "Helicone-Session-Name": "Research Agent",
+      },
+    }
+  );
+  
+  return response.choices[0].message.content;
+}
+```
+
+```python Python
+def analyze_query(query: str, session_id: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "Analyze the research query and identify key topics to investigate."
+            },
+            {"role": "user", "content": query}
+        ],
+        extra_headers={
+            "Helicone-Session-Id": session_id,
+            "Helicone-Session-Path": "/research/query",
+            "Helicone-Session-Name": "Research Agent",
+        }
+    )
+    
+    return response.choices[0].message.content
+```
+</CodeGroup>
+</Step>
+
+<Step title="Search Multiple Sources">
+Perform searches for each identified topic:
+
+<CodeGroup>
+```typescript Node.js
+async function searchSources(topics: string[], sessionId: string) {
+  const searches = topics.map(async (topic, index) => {
+    const response = await client.chat.completions.create(
+      {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "Search for relevant information about this topic."
+          },
+          { role: "user", content: topic }
+        ],
+      },
+      {
+        headers: {
+          "Helicone-Session-Id": sessionId,
+          "Helicone-Session-Path": `/research/search/${topic}`,
+          "Helicone-Session-Name": "Research Agent",
+          "Helicone-Property-SearchIndex": index.toString(),
+        },
+      }
+    );
+    
+    return response.choices[0].message.content;
+  });
+  
+  return await Promise.all(searches);
+}
+```
+
+```python Python
+import asyncio
+from typing import List
+
+async def search_sources(topics: List[str], session_id: str) -> List[str]:
+    async def search_topic(topic: str, index: int) -> str:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Search for relevant information about this topic."
+                },
+                {"role": "user", "content": topic}
+            ],
+            extra_headers={
+                "Helicone-Session-Id": session_id,
+                "Helicone-Session-Path": f"/research/search/{topic}",
+                "Helicone-Session-Name": "Research Agent",
+                "Helicone-Property-SearchIndex": str(index),
+            }
+        )
+        return response.choices[0].message.content
+    
+    tasks = [search_topic(topic, i) for i, topic in enumerate(topics)]
+    return await asyncio.gather(*tasks)
+```
+</CodeGroup>
+</Step>
+
+<Step title="Synthesize Results">
+Combine findings into coherent insights:
+
+<CodeGroup>
+```typescript Node.js
+async function synthesizeResults(
+  searchResults: string[],
+  sessionId: string
+) {
+  const response = await client.chat.completions.create(
+    {
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "Synthesize research findings into key insights."
+        },
+        {
+          role: "user",
+          content: `Research results:\n${searchResults.join("\n\n")}`
+        }
+      ],
+    },
+    {
+      headers: {
+        "Helicone-Session-Id": sessionId,
+        "Helicone-Session-Path": "/research/synthesize",
+        "Helicone-Session-Name": "Research Agent",
+      },
+    }
+  );
+  
+  return response.choices[0].message.content;
+}
+```
+
+```python Python
+def synthesize_results(search_results: List[str], session_id: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system",
+                "content": "Synthesize research findings into key insights."
+            },
+            {
+                "role": "user",
+                "content": f"Research results:\n{chr(10).join(search_results)}"
+            }
+        ],
+        extra_headers={
+            "Helicone-Session-Id": session_id,
+            "Helicone-Session-Path": "/research/synthesize",
+            "Helicone-Session-Name": "Research Agent",
+        }
+    )
+    
+    return response.choices[0].message.content
+```
+</CodeGroup>
+</Step>
+
+<Step title="Generate Final Report">
+Create the final research report:
+
+<CodeGroup>
+```typescript Node.js
+async function generateReport(
+  synthesis: string,
+  sessionId: string
+) {
+  const response = await client.chat.completions.create(
+    {
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "Create a well-formatted research report."
+        },
+        { role: "user", content: synthesis }
+      ],
+    },
+    {
+      headers: {
+        "Helicone-Session-Id": sessionId,
+        "Helicone-Session-Path": "/research/report",
+        "Helicone-Session-Name": "Research Agent",
+      },
+    }
+  );
+  
+  return response.choices[0].message.content;
+}
+```
+
+```python Python
+def generate_report(synthesis: str, session_id: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system",
+                "content": "Create a well-formatted research report."
+            },
+            {"role": "user", "content": synthesis}
+        ],
+        extra_headers={
+            "Helicone-Session-Id": session_id,
+            "Helicone-Session-Path": "/research/report",
+            "Helicone-Session-Name": "Research Agent",
+        }
+    )
+    
+    return response.choices[0].message.content
+```
+</CodeGroup>
+</Step>
+</Steps>
+
+## Step 5: Orchestrate the Agent
+
+Put it all together:
+
+<CodeGroup>
+```typescript Node.js
+async function runResearchAgent(userQuery: string) {
+  const sessionId = randomUUID();
+  
+  console.log(`Starting research session: ${sessionId}`);
+  
+  // Step 1: Analyze query
+  const analysis = await analyzeQuery(userQuery, sessionId);
+  const topics = analysis.split("\n"); // Simplified extraction
+  
+  // Step 2: Search sources
+  const searchResults = await searchSources(topics, sessionId);
+  
+  // Step 3: Synthesize
+  const synthesis = await synthesizeResults(searchResults, sessionId);
+  
+  // Step 4: Generate report
+  const report = await generateReport(synthesis, sessionId);
+  
+  console.log(`Research complete! View in Helicone: https://helicone.ai/sessions/${sessionId}`);
+  
+  return report;
+}
+
+// Run the agent
+runResearchAgent("What are the latest trends in AI agent architectures?");
+```
+
+```python Python
+async def run_research_agent(user_query: str) -> str:
+    session_id = str(uuid.uuid4())
+    
+    print(f"Starting research session: {session_id}")
+    
+    # Step 1: Analyze query
+    analysis = analyze_query(user_query, session_id)
+    topics = analysis.split("\n")  # Simplified extraction
+    
+    # Step 2: Search sources
+    search_results = await search_sources(topics, session_id)
+    
+    # Step 3: Synthesize
+    synthesis = synthesize_results(search_results, session_id)
+    
+    # Step 4: Generate report
+    report = generate_report(synthesis, session_id)
+    
+    print(f"Research complete! View in Helicone: https://helicone.ai/sessions/{session_id}")
+    
+    return report
+
+# Run the agent
+import asyncio
+asyncio.run(run_research_agent("What are the latest trends in AI agent architectures?"))
+```
+</CodeGroup>
+
+## Step 6: View Results in Helicone
+
+<Steps>
+<Step title="Navigate to Sessions">
+Go to [Helicone Sessions](https://helicone.ai/sessions) in your dashboard.
+</Step>
+
+<Step title="Find Your Session">
+Filter by session name "Research Agent" or search for your session ID.
+</Step>
+
+<Step title="Analyze the Flow">
+You'll see:
+- Complete request hierarchy
+- Duration of each step
+- Costs per operation
+- Total agent cost and latency
+- Request/response details for debugging
+</Step>
+</Steps>
+
+## Expected Output
+
+After running the agent, you'll see in Helicone:
+
+```
+Research Agent Session (550e8400-e29b-41d4-a716-446655440000)
+├── /research/query (1 request, 0.8s, $0.002)
+├── /research/search/topic1 (1 request, 1.2s, $0.003)
+├── /research/search/topic2 (1 request, 1.1s, $0.003)
+├── /research/search/topic3 (1 request, 1.3s, $0.003)
+├── /research/synthesize (1 request, 2.1s, $0.008)
+└── /research/report (1 request, 2.5s, $0.010)
+
+Total: 6 requests, 9.0s, $0.029
+```
+
+## Best Practices
+
+<Tip>
+**Use descriptive paths**: `/research/search/web` is better than `/step3`
+</Tip>
+
+<Tip>
+**Add custom properties**: Track user tiers, environments, or feature flags with `Helicone-Property-*` headers
+</Tip>
+
+<Tip>
+**Reuse session names**: All research tasks should use "Research Agent" so you can compare performance across runs
+</Tip>
+
+<Warning>
+Don't reuse session IDs across different workflows. Each agent run should have a unique session ID.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Sessions not appearing in dashboard">
+Check that:
+- All three headers are present: `Helicone-Session-Id`, `Helicone-Session-Path`, `Helicone-Session-Name`
+- Session ID is consistent across all requests
+- Requests are successfully reaching Helicone (check response headers for `helicone-id`)
+</Accordion>
+
+<Accordion title="Hierarchy not showing correctly">
+- Paths must start with `/`
+- Use `/` to separate levels: `/parent/child`
+- Ensure paths are consistent across related requests
+</Accordion>
+
+<Accordion title="Costs not calculating">
+Costs depend on accurate model detection. If using custom models or providers, costs may show as "not supported". Contact [help@helicone.ai](mailto:help@helicone.ai) to add support.
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Sessions Documentation" icon="layer-group" href="/features/sessions">
+  Deep dive into session features and configuration
+</Card>
+
+<Card title="Custom Properties" icon="tag" href="/features/advanced-usage/custom-properties">
+  Add metadata to track environments, users, and features
+</Card>
+
+<Card title="Cost Tracking" icon="dollar-sign" href="/guides/cost-tracking">
+  Monitor and optimize agent costs
+</Card>
+
+<Card title="User Metrics" icon="users" href="/features/advanced-usage/user-metrics">
+  Track agent usage per user
+</Card>
+</CardGroup>

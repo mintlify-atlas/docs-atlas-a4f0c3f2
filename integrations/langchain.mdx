@@ -1,0 +1,385 @@
+---
+title: "LangChain Integration"
+description: "Integrate Helicone with LangChain for full chain observability"
+icon: "link"
+---
+
+Integrate Helicone with LangChain to track and monitor your entire chain execution, including all LLM calls, tool usage, and chain logic.
+
+## Quick Start
+
+Integrate Helicone with LangChain by configuring your LLM with Helicone's base URL:
+
+<CodeGroup>
+```python Python
+from langchain_openai import ChatOpenAI
+import os
+
+# Configure LLM with Helicone
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+
+# Use in your chains
+response = llm.invoke("What is the capital of France?")
+print(response.content)
+```
+
+```typescript TypeScript
+import { ChatOpenAI } from "@langchain/openai";
+
+// Configure LLM with Helicone
+const llm = new ChatOpenAI({
+  modelName: "gpt-4o-mini",
+  openAIApiKey: process.env.OPENAI_API_KEY,
+  configuration: {
+    basePath: "https://oai.helicone.ai/v1",
+    defaultHeaders: {
+      "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+    },
+  },
+});
+
+// Use in your chains
+const response = await llm.invoke("What is the capital of France?");
+console.log(response.content);
+```
+</CodeGroup>
+
+## Installation
+
+<Tabs>
+  <Tab title="Python">
+    ```bash
+    pip install langchain langchain-openai
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```bash
+    npm install langchain @langchain/openai
+    ```
+  </Tab>
+</Tabs>
+
+## Supported Providers
+
+Helicone works with all LangChain LLM integrations:
+
+### OpenAI
+
+```python
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+```
+
+### Anthropic
+
+```python
+from langchain_anthropic import ChatAnthropic
+
+llm = ChatAnthropic(
+    model="claude-sonnet-4-20250514",
+    anthropic_api_url="https://anthropic.helicone.ai",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+```
+
+### Azure OpenAI
+
+```python
+from langchain_openai import AzureChatOpenAI
+
+llm = AzureChatOpenAI(
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    openai_api_version="2024-02-01",
+    azure_deployment="gpt-4",
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        "Helicone-Target-URL": os.getenv("AZURE_OPENAI_ENDPOINT"),
+    },
+)
+```
+
+## Chain Observability
+
+### Simple Chains
+
+Track simple LLM chains:
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant."),
+    ("user", "{input}")
+])
+
+chain = prompt | llm
+response = chain.invoke({"input": "What is LangChain?"})  
+
+# All LLM calls are logged to Helicone
+```
+
+### Sequential Chains
+
+Track multi-step chains:
+
+```python
+from langchain.chains import LLMChain, SequentialChain
+from langchain.prompts import PromptTemplate
+
+# First chain: Generate a topic
+topic_prompt = PromptTemplate(
+    input_variables=["subject"],
+    template="Generate a specific topic about {subject}"
+)
+topic_chain = LLMChain(llm=llm, prompt=topic_prompt, output_key="topic")
+
+# Second chain: Write about the topic
+write_prompt = PromptTemplate(
+    input_variables=["topic"],
+    template="Write a paragraph about {topic}"
+)
+write_chain = LLMChain(llm=llm, prompt=write_prompt, output_key="paragraph")
+
+# Combine chains
+overall_chain = SequentialChain(
+    chains=[topic_chain, write_chain],
+    input_variables=["subject"],
+    output_variables=["topic", "paragraph"],
+)
+
+result = overall_chain({"subject": "artificial intelligence"})
+
+# Each step is logged separately to Helicone
+```
+
+### Agents and Tools
+
+Track agent execution and tool calls:
+
+```python
+from langchain.agents import initialize_agent, Tool
+from langchain.agents import AgentType
+
+def search_tool(query: str) -> str:
+    return f"Search results for: {query}"
+
+tools = [
+    Tool(
+        name="Search",
+        func=search_tool,
+        description="Search for information"
+    )
+]
+
+agent = initialize_agent(
+    tools=tools,
+    llm=llm,
+    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True,
+)
+
+response = agent.run("What is the weather in Paris?")
+
+# All agent LLM calls and tool usage are logged
+```
+
+## Session Tracking
+
+Group related chain executions:
+
+```python
+import uuid
+
+session_id = str(uuid.uuid4())
+
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        "Helicone-Session-Id": session_id,
+        "Helicone-Session-Name": "LangChain Chatbot",
+    },
+)
+
+# All calls with this LLM instance are grouped in the same session
+```
+
+## Custom Properties
+
+Add metadata to track different aspects of your chains:
+
+```python
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        "Helicone-Property-Chain-Type": "sequential",
+        "Helicone-Property-User-Id": "user-123",
+        "Helicone-Property-Environment": "production",
+    },
+)
+```
+
+## RAG Applications
+
+Track Retrieval-Augmented Generation workflows:
+
+```python
+from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.chains import RetrievalQA
+
+# Configure embeddings with Helicone
+embeddings = OpenAIEmbeddings(
+    openai_api_base="https://oai.helicone.ai/v1",
+    headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+
+# Create vector store (example)
+texts = ["Document 1 content", "Document 2 content"]
+vectorstore = FAISS.from_texts(texts, embeddings)
+
+# Create RAG chain
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    retriever=vectorstore.as_retriever(),
+    return_source_documents=True,
+)
+
+result = qa_chain({"query": "What is in document 1?"})
+
+# Both embedding and completion calls are logged
+```
+
+## Streaming
+
+Helicone supports streaming in LangChain:
+
+```python
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    streaming=True,
+    callbacks=[StreamingStdOutCallbackHandler()],
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    },
+)
+
+response = llm.invoke("Write a short story")
+# Streams to stdout while logging to Helicone
+```
+
+## Prompt Tracking
+
+Track different prompt versions:
+
+```python
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    openai_api_base="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+        "Helicone-Prompt-Id": "customer-support-v2",
+    },
+)
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Requests not appearing in dashboard" icon="magnifying-glass">
+    **Check these common issues:**
+    
+    1. Verify `openai_api_base` is set correctly
+    2. Ensure `Helicone-Auth` header is in `default_headers`
+    3. Check that your `HELICONE_API_KEY` is correct
+    4. For Anthropic, use `anthropic_api_url` instead of `api_base`
+    
+    **Debug by enabling verbose mode:**
+    ```python
+    llm = ChatOpenAI(..., verbose=True)
+    ```
+  </Accordion>
+
+  <Accordion title="Headers not being passed" icon="code">
+    Make sure to use `default_headers` (not `headers`):
+    
+    ```python
+    llm = ChatOpenAI(
+        default_headers={  # ✓ Correct
+            "Helicone-Auth": f"Bearer {key}",
+        }
+    )
+    ```
+  </Accordion>
+
+  <Accordion title="Multiple LLM calls in one chain" icon="link">
+    Each LLM call in a chain is logged separately. Use `Helicone-Session-Id` to group them:
+    
+    ```python
+    default_headers={
+        "Helicone-Auth": f"Bearer {key}",
+        "Helicone-Session-Id": "chain-123",
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+See more examples in our documentation:
+
+- [Simple LangChain integration](https://docs.helicone.ai/examples/langchain)
+- [LangChain with sessions](https://docs.helicone.ai/examples/langchain-sessions)
+- [RAG with LangChain](https://docs.helicone.ai/examples/langchain-rag)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="link">
+    Track multi-turn conversations
+  </Card>
+  <Card title="Custom Properties" icon="tag">
+    Add metadata to requests
+  </Card>
+  <Card title="Prompts" icon="file-lines">
+    Version and manage prompts
+  </Card>
+  <Card title="Dashboard" icon="chart-line">
+    Analyze chain performance
+  </Card>
+</CardGroup>

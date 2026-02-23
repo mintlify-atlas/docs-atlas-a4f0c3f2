@@ -1,0 +1,133 @@
+---
+title: 'Query Prompts'
+description: 'List and filter prompts in your organization'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" default="POST">
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  `/v1/prompt/query`
+</ParamField>
+
+## Authentication
+
+This endpoint requires API key authentication. Include your API key in the request headers:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body
+
+<ParamField body="filter" type="object" required>
+  Filter criteria for prompts. Can be "all" for no filtering, or an object with prompt_v2 filters:
+  - `id`: Filter by prompt ID
+  - `user_defined_id`: Filter by user-defined ID
+  
+  Each filter supports operators like `equals`, `like`, `ilike`, `contains`, etc.
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of prompt objects
+  <ResponseField name="id" type="string">
+    Unique identifier for the prompt
+  </ResponseField>
+  <ResponseField name="user_defined_id" type="string">
+    User-defined identifier
+  </ResponseField>
+  <ResponseField name="description" type="string">
+    Prompt description
+  </ResponseField>
+  <ResponseField name="pretty_name" type="string">
+    Display name for the prompt
+  </ResponseField>
+  <ResponseField name="created_at" type="string">
+    Prompt creation timestamp
+  </ResponseField>
+  <ResponseField name="major_version" type="number">
+    Current major version number
+  </ResponseField>
+  <ResponseField name="metadata" type="object">
+    Additional metadata
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the request failed, null otherwise
+</ResponseField>
+
+## Example Request - Get All Prompts
+
+```bash
+curl -X POST https://api.helicone.ai/v1/prompt/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": "all"
+  }'
+```
+
+## Example Request - Filter by User-Defined ID
+
+```bash
+curl -X POST https://api.helicone.ai/v1/prompt/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filter": {
+      "prompt_v2": {
+        "user_defined_id": {
+          "equals": "customer-support-v1"
+        }
+      }
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "prompt_abc123",
+      "user_defined_id": "customer-support-v1",
+      "description": "Customer support prompt template",
+      "pretty_name": "Customer Support",
+      "created_at": "2024-01-01T10:00:00Z",
+      "major_version": 2,
+      "metadata": {
+        "department": "support"
+      }
+    },
+    {
+      "id": "prompt_def456",
+      "user_defined_id": "sales-assistant",
+      "description": "Sales assistant prompt",
+      "pretty_name": "Sales Assistant",
+      "created_at": "2024-01-05T14:30:00Z",
+      "major_version": 1,
+      "metadata": {
+        "department": "sales"
+      }
+    }
+  ],
+  "error": null
+}
+```
+
+## Filter Operators
+
+The following operators are available for text filters:
+- `equals`: Exact match
+- `not-equals`: Does not match
+- `like`: SQL LIKE pattern matching (case-sensitive)
+- `ilike`: SQL LIKE pattern matching (case-insensitive)
+- `contains`: Contains substring
+- `not-contains`: Does not contain substring

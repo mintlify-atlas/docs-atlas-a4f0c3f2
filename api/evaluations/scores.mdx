@@ -1,0 +1,137 @@
+---
+title: 'Evaluator Stats'
+description: 'Get statistics and performance metrics for an evaluator'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" default="GET">
+  GET
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  `/v1/evaluator/{evaluatorId}/stats`
+</ParamField>
+
+## Authentication
+
+This endpoint requires API key authentication. Include your API key in the request headers:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="evaluatorId" type="string" required>
+  The unique identifier of the evaluator
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  Evaluator statistics
+  <ResponseField name="averageScore" type="number">
+    Average score across all evaluations
+  </ResponseField>
+  <ResponseField name="totalUses" type="number">
+    Total number of times this evaluator has been used
+  </ResponseField>
+  <ResponseField name="recentTrend" type="string">
+    Recent trend direction: "up", "down", or "stable"
+  </ResponseField>
+  <ResponseField name="scoreDistribution" type="array">
+    Distribution of scores across ranges
+    <ResponseField name="range" type="string">
+      Score range (e.g., "0-20", "20-40")
+    </ResponseField>
+    <ResponseField name="count" type="number">
+      Number of evaluations in this range
+    </ResponseField>
+  </ResponseField>
+  <ResponseField name="timeSeriesData" type="array">
+    Historical data over time
+    <ResponseField name="date" type="string">
+      Date in ISO format
+    </ResponseField>
+    <ResponseField name="value" type="number">
+      Average score for that date
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the request failed, null otherwise
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X GET https://api.helicone.ai/v1/evaluator/eval_abc123/stats \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example Response
+
+```json
+{
+  "data": {
+    "averageScore": 7.5,
+    "totalUses": 1250,
+    "recentTrend": "up",
+    "scoreDistribution": [
+      {
+        "range": "0-2",
+        "count": 50
+      },
+      {
+        "range": "2-4",
+        "count": 100
+      },
+      {
+        "range": "4-6",
+        "count": 200
+      },
+      {
+        "range": "6-8",
+        "count": 450
+      },
+      {
+        "range": "8-10",
+        "count": 450
+      }
+    ],
+    "timeSeriesData": [
+      {
+        "date": "2024-01-01",
+        "value": 7.2
+      },
+      {
+        "date": "2024-01-02",
+        "value": 7.3
+      },
+      {
+        "date": "2024-01-03",
+        "value": 7.4
+      },
+      {
+        "date": "2024-01-04",
+        "value": 7.6
+      },
+      {
+        "date": "2024-01-05",
+        "value": 7.5
+      }
+    ]
+  },
+  "error": null
+}
+```
+
+## Use Cases
+
+- Monitor evaluator performance over time
+- Identify trends in evaluation scores
+- Understand score distribution patterns
+- Track usage frequency of different evaluators
+- Optimize evaluation criteria based on historical data

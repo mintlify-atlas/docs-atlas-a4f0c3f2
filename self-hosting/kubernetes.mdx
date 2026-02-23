@@ -1,0 +1,555 @@
+---
+title: "Kubernetes Deployment"
+sidebarTitle: "Kubernetes"
+description: "Deploy Helicone on Kubernetes using Helm charts for scalable, production-ready LLM observability infrastructure."
+---
+
+<Info>
+  The Helicone Helm chart is available for enterprise customers. [Schedule a call](https://cal.com/team/helicone/helicone-discovery) to discuss access and support.
+</Info>
+
+## Overview
+
+The Helicone Helm chart deploys the complete stack on Kubernetes with:
+
+- **Scalable architecture**: Horizontal pod autoscaling for high-traffic workloads
+- **High availability**: Multi-replica deployments with health checks
+- **Observability**: Integrated Grafana and Prometheus monitoring
+- **GitOps support**: Optional ArgoCD for continuous deployment
+- **Infrastructure as Code**: Terraform modules for AWS resources
+
+## Architecture
+
+The Helm deployment consists of modular charts:
+
+- **helicone-core**: Application components (web, jawn, workers)
+- **helicone-infrastructure**: Database services (PostgreSQL, ClickHouse, Redis, MinIO)
+- **helicone-monitoring**: Observability stack (Grafana, Prometheus, Beyla)
+- **helicone-argocd**: GitOps continuous deployment
+
+## Prerequisites
+
+### Required Tools
+
+1. **[kubectl](https://kubernetes.io/docs/tasks/tools/)** - Kubernetes command-line tool
+2. **[Helm 3.0+](https://helm.sh/docs/intro/install/)** - Kubernetes package manager
+3. **[AWS CLI](https://aws.amazon.com/cli/)** (for AWS deployments) - Configured with appropriate permissions
+4. **[Terraform](https://developer.hashicorp.com/terraform/install)** (optional) - For infrastructure provisioning
+
+### Kubernetes Cluster Requirements
+
+- **Kubernetes version**: 1.24+
+- **Node resources**: 
+  - Minimum: 3 nodes with 4 CPU / 16GB RAM each
+  - Recommended: 5+ nodes with 8 CPU / 32GB RAM each for production
+- **Storage**: Dynamic volume provisioning (e.g., AWS EBS CSI driver)
+- **LoadBalancer**: Cloud provider load balancer or ingress controller
+
+## Installation
+
+### Option 1: Helm Compose (Recommended)
+
+Deploy all components with a single command:
+
+```bash
+# Clone the Helm repository
+git clone https://github.com/Helicone/helicone-helm-v3.git
+cd helicone-helm-v3
+
+# Configure values
+cp values.example.yaml values.yaml
+cp secrets.example.yaml secrets.yaml
+
+# Edit values.yaml and secrets.yaml for your environment
+vim values.yaml
+vim secrets.yaml
+
+# Deploy all components
+helm compose up
+```
+
+This deploys:
+- helicone-core (web, jawn, workers)
+- helicone-infrastructure (databases, caching, storage)
+- helicone-monitoring (Grafana, Prometheus)
+- helicone-argocd (GitOps)
+
+### Option 2: Manual Helm Installation
+
+Install components individually for granular control:
+
+```bash
+# 1. Install dependencies
+cd helicone && helm dependency build
+
+# 2. Configure values
+cp values.example.yaml values.yaml
+cp secrets.example.yaml secrets.yaml
+
+# Edit configuration files
+vim values.yaml
+vim secrets.yaml
+
+# 3. Install infrastructure services first
+helm upgrade --install helicone-infrastructure \
+  ./helicone-infrastructure \
+  -f values.yaml \
+  -f secrets.yaml \
+  --create-namespace \
+  --namespace helicone
+
+# 4. Wait for infrastructure to be ready
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/name=postgresql \
+  -n helicone \
+  --timeout=300s
+
+# 5. Install core application
+helm upgrade --install helicone-core \
+  ./helicone-core \
+  -f values.yaml \
+  -f secrets.yaml \
+  --namespace helicone
+
+# 6. Install monitoring (optional)
+helm upgrade --install helicone-monitoring \
+  ./helicone-monitoring \
+  -f values.yaml \
+  --namespace monitoring \
+  --create-namespace
+
+# 7. Install ArgoCD (optional)
+helm upgrade --install helicone-argocd \
+  ./helicone-argocd \
+  -f values.yaml \
+  --namespace argocd \
+  --create-namespace
+```
+
+### Verify Deployment
+
+```bash
+# Check pod status
+kubectl get pods -n helicone
+
+# Check services
+kubectl get svc -n helicone
+
+# Check ingress/load balancers
+kubectl get ingress -n helicone
+
+# View logs
+kubectl logs -n helicone -l app=helicone-web
+kubectl logs -n helicone -l app=helicone-jawn
+```
+
+All pods should reach `Running` state with `Ready 1/1`.
+
+## Configuration
+
+### values.yaml Structure
+
+The main configuration file controls all deployment aspects:
+
+```yaml
+# Global settings
+global:
+  domain: helicone.yourdomain.com
+  storageClass: gp3  # AWS EBS gp3 volumes
+  
+# Core application
+helicone-core:
+  web:
+    replicaCount: 2
+    image:
+      repository: helicone/web
+      tag: latest
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilization: 70
+  
+  jawn:
+    replicaCount: 2
+    # Similar configuration...
+
+# Infrastructure services
+helicone-infrastructure:
+  postgresql:
+    enabled: true  # Set to false if using AWS Aurora
+    primary:
+      persistence:
+        size: 100Gi
+  
+  clickhouse:
+    enabled: true
+    persistence:
+      size: 500Gi
+  
+  minio:
+    enabled: true  # Set to false if using AWS S3
+    persistence:
+      size: 1Ti
+
+# Monitoring
+helicone-monitoring:
+  grafana:
+    enabled: true
+  prometheus:
+    enabled: true
+```
+
+### secrets.yaml Structure
+
+<Warning>
+  Never commit secrets.yaml to version control. Use Kubernetes Secrets or a secrets management solution like AWS Secrets Manager.
+</Warning>
+
+```yaml
+secrets:
+  # Authentication
+  betterAuthSecret: "generate-with-openssl-rand-base64-32"
+  
+  # Database credentials
+  postgresPassword: "secure-postgres-password"
+  clickhousePassword: "secure-clickhouse-password"
+  
+  # S3/MinIO credentials
+  s3AccessKey: "your-s3-access-key"
+  s3SecretKey: "your-s3-secret-key"
+  
+  # Redis
+  redisPassword: "secure-redis-password"
+```
+
+## AWS Infrastructure (Optional)
+
+Use Terraform to provision AWS resources for production deployments.
+
+### EKS Cluster
+
+```bash
+cd terraform/eks
+
+# Initialize Terraform
+terraform init
+
+# Review planned changes
+terraform plan
+
+# Create EKS cluster
+terraform apply
+
+# Configure kubectl
+aws eks update-kubeconfig --name helicone-cluster --region us-east-1
+```
+
+### Aurora PostgreSQL
+
+```bash
+cd terraform/aurora
+
+terraform init
+terraform plan
+terraform apply
+
+# Get connection string and update values.yaml:
+# helicone-infrastructure:
+#   postgresql:
+#     enabled: false
+#   externalPostgresql:
+#     host: aurora-endpoint.region.rds.amazonaws.com
+#     port: 5432
+#     database: helicone
+```
+
+### S3 Buckets
+
+```bash
+cd terraform/s3
+
+terraform init
+terraform apply
+
+# Update values.yaml:
+# helicone-infrastructure:
+#   minio:
+#     enabled: false
+#   s3:
+#     bucketName: helicone-request-response-storage
+#     endpoint: s3.us-east-1.amazonaws.com
+```
+
+**Configure S3 CORS** (required for web dashboard to access presigned URLs):
+
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET"],
+    "AllowedOrigins": ["https://helicone.yourdomain.com"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]
+```
+
+Apply in AWS Console: S3 Bucket → Permissions → CORS configuration.
+
+## Accessing Services
+
+### Web Dashboard
+
+```bash
+# Port-forward for testing
+kubectl port-forward -n helicone svc/helicone-web 3000:80
+
+# Access at http://localhost:3000
+```
+
+For production, configure Ingress or LoadBalancer in `values.yaml`.
+
+### Grafana Monitoring
+
+```bash
+# Port-forward to Grafana
+kubectl port-forward -n monitoring svc/grafana 3000:80
+
+# Get admin password
+kubectl get secret grafana -n monitoring -o jsonpath="{.data.admin-password}" | base64 -d
+
+# Access at http://localhost:3000
+# Login: admin / <password>
+```
+
+Pre-configured dashboards provide:
+- Request throughput and latency
+- Service health and resource usage
+- Database performance metrics
+- Error rates and alert triggers
+
+### ArgoCD GitOps
+
+```bash
+# Port-forward to ArgoCD
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+# Get admin password
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
+
+# Access at https://localhost:8080
+# Login: admin / <password>
+```
+
+ArgoCD monitors your Git repository and automatically syncs changes to the cluster.
+
+## Scaling Considerations
+
+### Horizontal Pod Autoscaling
+
+The Helm chart includes HPA configurations:
+
+```yaml
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+```
+
+**Metrics Server** must be installed:
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
+
+### Database Scaling
+
+**PostgreSQL**: 
+- Use AWS Aurora with read replicas
+- Configure read/write splitting in application
+
+**ClickHouse**:
+- Deploy as a cluster with multiple shards
+- Configure replication for high availability
+
+**Redis**:
+- Use Redis Cluster mode or AWS ElastiCache
+- Configure sentinel for automatic failover
+
+### Storage Scaling
+
+**S3/MinIO**:
+- Use lifecycle policies to archive old data
+- Consider tiered storage for cost optimization
+
+**ClickHouse**:
+- Implement time-based partitioning
+- Configure TTL policies for old data
+
+## Production Best Practices
+
+### High Availability
+
+- Deploy core services with `replicaCount: 3+`
+- Use pod anti-affinity to spread replicas across nodes
+- Configure pod disruption budgets
+- Enable database replication
+
+### Security
+
+- Enable Network Policies to restrict pod-to-pod traffic
+- Use Kubernetes Secrets with encryption at rest
+- Integrate with AWS Secrets Manager or HashiCorp Vault
+- Configure RBAC for least-privilege access
+- Enable Pod Security Standards
+
+### Monitoring & Alerts
+
+- Configure Prometheus alert rules for critical metrics
+- Set up PagerDuty/Opsgenie integration
+- Monitor database connection pools
+- Track request latency and error rates
+
+### Backup & Disaster Recovery
+
+```bash
+# Backup PostgreSQL with Velero
+velero backup create helicone-postgres --include-namespaces helicone
+
+# Backup ClickHouse data
+kubectl exec -n helicone clickhouse-0 -- clickhouse-client \
+  --query "BACKUP DATABASE default TO Disk('backups', 'backup.zip')"
+```
+
+## Troubleshooting
+
+### Pods not starting
+
+```bash
+# Check pod status and events
+kubectl describe pod <pod-name> -n helicone
+
+# Check logs
+kubectl logs <pod-name> -n helicone
+
+# Check resource availability
+kubectl top nodes
+kubectl top pods -n helicone
+```
+
+### Database connection issues
+
+```bash
+# Test PostgreSQL connectivity
+kubectl run -it --rm debug --image=postgres:17 --restart=Never -- \
+  psql -h helicone-postgresql -U postgres -d helicone
+
+# Test ClickHouse connectivity
+kubectl run -it --rm debug --image=clickhouse/clickhouse-server --restart=Never -- \
+  clickhouse-client --host helicone-clickhouse
+```
+
+### Ingress/LoadBalancer not working
+
+```bash
+# Check ingress status
+kubectl get ingress -n helicone
+kubectl describe ingress helicone-ingress -n helicone
+
+# Check load balancer
+kubectl get svc -n helicone
+```
+
+### Performance issues
+
+```bash
+# Check resource usage
+kubectl top pods -n helicone
+
+# Check HPA status
+kubectl get hpa -n helicone
+
+# View detailed metrics
+kubectl describe hpa helicone-web -n helicone
+```
+
+## Upgrading
+
+### Helm Chart Updates
+
+```bash
+# Pull latest chart
+git pull origin main
+
+# Review changes
+helm diff upgrade helicone-core ./helicone-core -f values.yaml
+
+# Upgrade
+helm upgrade helicone-core ./helicone-core -f values.yaml
+
+# Verify
+kubectl rollout status deployment/helicone-web -n helicone
+```
+
+### Database Migrations
+
+Migrations run automatically as a Kubernetes Job before deployments start. Monitor:
+
+```bash
+kubectl logs -n helicone job/helicone-migrations -f
+```
+
+## Uninstalling
+
+### Remove all components:
+
+```bash
+# Using Helm Compose
+helm compose down
+
+# Or manually
+helm uninstall helicone-core -n helicone
+helm uninstall helicone-infrastructure -n helicone
+helm uninstall helicone-monitoring -n monitoring
+helm uninstall helicone-argocd -n argocd
+
+# Delete namespaces
+kubectl delete namespace helicone monitoring argocd
+```
+
+<Warning>
+  This does not delete persistent volumes. Delete them manually if you want to remove all data:
+  ```bash
+  kubectl delete pvc --all -n helicone
+  ```
+</Warning>
+
+## Getting Enterprise Support
+
+The Helicone Helm chart and Kubernetes support are available for enterprise customers:
+
+- **Helm chart access**: Private repository with production-ready configurations
+- **Terraform modules**: AWS infrastructure as code
+- **Migration assistance**: Help moving from Docker to Kubernetes
+- **Architecture review**: Optimize your deployment for scale and cost
+- **Priority support**: Direct engineering support via Slack/Discord
+
+[Schedule a call](https://cal.com/team/helicone/helicone-discovery) to discuss enterprise options.
+
+## Next Steps
+
+- Configure application to use Kubernetes endpoints
+- Set up monitoring dashboards and alerts
+- Implement backup and disaster recovery procedures
+- Review [API documentation](/api-reference/introduction) for integration

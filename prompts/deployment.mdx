@@ -1,0 +1,328 @@
+---
+title: 'Prompt Deployment'
+description: 'Deploy prompts to different environments and manage production releases'
+---
+
+## Environment Overview
+
+Helicone supports deploying different prompt versions to separate environments, enabling safe testing before production deployment.
+
+### Common Environment Setup
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Development │ →   │   Staging   │ →   │ Production  │
+│   v2.3      │     │    v2.2     │     │    v2.0     │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+**Development**: Test experimental changes
+**Staging**: QA and validation before production
+**Production**: Stable version serving live traffic
+
+You can create custom environments to match your workflow (e.g., `qa`, `preview`, `canary`).
+
+## Deploying to Environments
+
+### Set Environment for Version
+
+Deploy a specific version to an environment:
+
+```typescript
+import { getJawnClient } from "./lib/clients/jawn";
+
+const jawn = getJawnClient(orgId);
+
+await jawn.POST("/v1/prompt-2025/update/environment", {
+  body: {
+    promptId: "your-prompt-id",
+    promptVersionId: "version-to-deploy",
+    environment: "production",
+  },
+});
+```
+
+### Multiple Environments
+
+A single version can be deployed to multiple environments:
+
+```typescript
+const environments = ["staging", "qa", "preview"];
+
+for (const env of environments) {
+  await jawn.POST("/v1/prompt-2025/update/environment", {
+    body: {
+      promptId: "your-prompt-id",
+      promptVersionId: "version-id",
+      environment: env,
+    },
+  });
+}
+```
+
+### Remove from Environment
+
+```typescript
+await jawn.POST("/v1/prompt-2025/remove/environment", {
+  body: {
+    promptId: "your-prompt-id",
+    promptVersionId: "version-id",
+    environment: "staging",
+  },
+});
+```
+
+## Loading Environment-Specific Prompts
+
+### Using the SDK
+
+Load prompts based on your application environment:
+
+```typescript
+import { HeliconePromptManager } from "@helicone/prompts";
+
+const manager = new HeliconePromptManager({
+  apiKey: process.env.HELICONE_API_KEY!,
+});
+
+// Load from current environment
+const { body } = await manager.getPromptBody({
+  prompt_id: "customer-support",
+  environment: process.env.NODE_ENV, // "development", "staging", "production"
+  inputs: {
+    customer_name: "Alice",
+    issue_type: "billing",
+  },
+});
+```
+
+### Fallback Strategy
+
+If no version is deployed to the requested environment, you can implement fallback logic:
+
+```typescript
+async function getPromptWithFallback(
+  promptId: string,
+  environment: string,
+  inputs: Record<string, any>
+) {
+  try {
+    // Try environment-specific version
+    return await manager.getPromptBody({
+      prompt_id: promptId,
+      environment,
+      inputs,
+    });
+  } catch (error) {
+    console.warn(`No version for ${environment}, falling back to production`);
+    // Fallback to production
+    return await manager.getPromptBody({
+      prompt_id: promptId,
+      environment: "production",
+      inputs,
+    });
+  }
+}
+```
+
+### Query Environment Version
+
+Check what version is deployed to an environment:
+
+```typescript
+const response = await jawn.POST("/v1/prompt-2025/query/environment-version", {
+  body: {
+    promptId: "your-prompt-id",
+    environment: "production",
+  },
+});
+
+const version = response.data?.data;
+console.log(`Production is on v${version.major_version}.${version.minor_version}`);
+```
+
+## Deployment Workflow
+
+### 1. Create and Test Locally
+
+```typescript
+// Create new version
+const newVersion = await jawn.POST("/v1/prompt-2025/update", {
+  body: {
+    promptId: "my-prompt",
+    promptVersionId: "current-version",
+    newMajorVersion: false,
+    commitMessage: "Improved response quality",
+    promptBody: {
+      // ... your prompt
+    },
+  },
+});
+
+// Deploy to development
+await jawn.POST("/v1/prompt-2025/update/environment", {
+  body: {
+    promptId: "my-prompt",
+    promptVersionId: newVersion.data?.data?.id!,
+    environment: "development",
+  },
+});
+```
+
+### 2. Validate in Staging
+
+```typescript
+// Promote to staging
+await jawn.POST("/v1/prompt-2025/update/environment", {
+  body: {
+    promptId: "my-prompt",
+    promptVersionId: newVersion.data?.data?.id!,
+    environment: "staging",
+  },
+});
+
+// Run integration tests against staging
+const { body } = await manager.getPromptBody({
+  prompt_id: "my-prompt",
+  environment: "staging",
+  inputs: testInputs,
+});
+
+// Verify outputs meet quality standards
+```
+
+### 3. Deploy to Production
+
+```typescript
+// After validation, deploy to production
+await jawn.POST("/v1/prompt-2025/update/environment", {
+  body: {
+    promptId: "my-prompt",
+    promptVersionId: newVersion.data?.data?.id!,
+    environment: "production",
+  },
+});
+
+console.log("✅ Deployed to production");
+```
+
+### 4. Monitor and Rollback if Needed
+
+If issues arise, quickly rollback:
+
+```typescript
+// Get previous production version
+const versions = await jawn.POST("/v1/prompt-2025/query/versions", {
+  body: { promptId: "my-prompt" },
+});
+
+const previousVersion = versions.data?.data?.find(
+  (v) => v.environments?.includes("production-backup")
+);
+
+// Rollback
+await jawn.POST("/v1/prompt-2025/update/environment", {
+  body: {
+    promptId: "my-prompt",
+    promptVersionId: previousVersion!.id,
+    environment: "production",
+  },
+});
+```
+
+## Best Practices
+
+### Environment Configuration
+
+Use environment variables to manage prompt loading:
+
+```typescript
+// config.ts
+export const config = {
+  promptEnvironment: process.env.PROMPT_ENV || process.env.NODE_ENV || "production",
+  heliconeApiKey: process.env.HELICONE_API_KEY!,
+};
+
+// prompts.ts
+const manager = new HeliconePromptManager({
+  apiKey: config.heliconeApiKey,
+});
+
+export async function loadPrompt(promptId: string, inputs: Record<string, any>) {
+  return await manager.getPromptBody({
+    prompt_id: promptId,
+    environment: config.promptEnvironment,
+    inputs,
+  });
+}
+```
+
+### Gradual Rollout
+
+Implement canary deployments:
+
+```typescript
+const useCanary = Math.random() < 0.1; // 10% of traffic
+
+const { body } = await manager.getPromptBody({
+  prompt_id: "my-prompt",
+  environment: useCanary ? "canary" : "production",
+  inputs,
+});
+```
+
+### Version Tagging
+
+Tag production versions before deploying new ones:
+
+```typescript
+// Before deploying v2.3 to production:
+// 1. Get current production version (v2.2)
+const currentProd = await jawn.POST("/v1/prompt-2025/query/environment-version", {
+  body: { promptId: "my-prompt", environment: "production" },
+});
+
+// 2. Tag it as production-backup
+await jawn.POST("/v1/prompt-2025/update/environment", {
+  body: {
+    promptId: "my-prompt",
+    promptVersionId: currentProd.data?.data?.id!,
+    environment: "production-backup",
+  },
+});
+
+// 3. Deploy new version to production
+```
+
+### List All Environments
+
+```typescript
+const response = await jawn.GET("/v1/prompt-2025/environments", {
+  params: {},
+});
+
+const environments = response.data?.data || [];
+console.log("Available environments:", environments);
+```
+
+### Deployment Checklist
+
+- [ ] Test new version in development environment
+- [ ] Run automated tests against staging
+- [ ] Review prompt changes with stakeholders
+- [ ] Tag current production version as backup
+- [ ] Deploy to production during low-traffic window
+- [ ] Monitor error rates and quality metrics
+- [ ] Keep rollback plan ready
+- [ ] Document changes in commit message
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Versioning" icon="code-branch" href="/prompts/versioning">
+    Learn about version management
+  </Card>
+  <Card title="SDK Integration" icon="code" href="/prompts/sdk-integration">
+    Integrate prompts into your app
+  </Card>
+</CardGroup>

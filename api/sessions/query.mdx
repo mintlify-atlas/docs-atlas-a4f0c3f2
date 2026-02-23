@@ -1,0 +1,135 @@
+---
+title: 'Query Sessions'
+description: 'Retrieve sessions with filtering and pagination'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" default="POST">
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  `/v1/session/query`
+</ParamField>
+
+## Authentication
+
+This endpoint requires API key authentication. Include your API key in the request headers:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body
+
+<ParamField body="search" type="string" required>
+  Search string to filter sessions
+</ParamField>
+
+<ParamField body="timeFilter" type="object" required>
+  Time range filter for sessions
+  <ParamField body="startTimeUnixMs" type="number" required>
+    Start time in Unix milliseconds
+  </ParamField>
+  <ParamField body="endTimeUnixMs" type="number" required>
+    End time in Unix milliseconds
+  </ParamField>
+</ParamField>
+
+<ParamField body="nameEquals" type="string">
+  Filter by exact session name
+</ParamField>
+
+<ParamField body="timezoneDifference" type="number" required>
+  Timezone offset in minutes
+</ParamField>
+
+<ParamField body="filter" type="object" required>
+  Advanced filtering options. Can be "all" for no filter, or a filter tree with request_response_rmt and sessions_request_response_rmt operators
+</ParamField>
+
+<ParamField body="offset" type="number">
+  Number of records to skip (for pagination)
+</ParamField>
+
+<ParamField body="limit" type="number">
+  Maximum number of records to return
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="array">
+  Array of session objects
+  <ResponseField name="session_id" type="string">
+    Unique identifier for the session
+  </ResponseField>
+  <ResponseField name="session_name" type="string">
+    Name of the session
+  </ResponseField>
+  <ResponseField name="total_cost" type="number">
+    Total cost of all requests in the session
+  </ResponseField>
+  <ResponseField name="total_tokens" type="number">
+    Total number of tokens used in the session
+  </ResponseField>
+  <ResponseField name="prompt_tokens" type="number">
+    Total prompt tokens used
+  </ResponseField>
+  <ResponseField name="completion_tokens" type="number">
+    Total completion tokens used
+  </ResponseField>
+  <ResponseField name="total_requests" type="number">
+    Number of requests in the session
+  </ResponseField>
+  <ResponseField name="created_at" type="string">
+    Session creation timestamp
+  </ResponseField>
+  <ResponseField name="latest_request_created_at" type="string">
+    Timestamp of the most recent request
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the request failed, null otherwise
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.helicone.ai/v1/session/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "search": "",
+    "timeFilter": {
+      "startTimeUnixMs": 1704067200000,
+      "endTimeUnixMs": 1706745600000
+    },
+    "timezoneDifference": 0,
+    "filter": "all",
+    "offset": 0,
+    "limit": 10
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "data": [
+    {
+      "session_id": "sess_abc123",
+      "session_name": "Customer Support Chat",
+      "total_cost": 0.0045,
+      "total_tokens": 1500,
+      "prompt_tokens": 800,
+      "completion_tokens": 700,
+      "total_requests": 5,
+      "created_at": "2024-01-15T10:30:00Z",
+      "latest_request_created_at": "2024-01-15T10:45:00Z"
+    }
+  ],
+  "error": null
+}
+```

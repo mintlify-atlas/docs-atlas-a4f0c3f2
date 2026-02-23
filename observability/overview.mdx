@@ -1,0 +1,129 @@
+---
+title: "Observability Overview"
+description: "Monitor, analyze, and optimize your LLM applications with comprehensive observability features"
+---
+
+## What is Observability?
+
+Helicone provides end-to-end observability for your LLM applications, giving you complete visibility into every request, session, and user interaction. Track costs, latency, errors, and performance metrics in real-time.
+
+## Key Observability Features
+
+<CardGroup cols={2}>
+  <Card title="Request Logging" icon="list" href="/observability/requests">
+    Capture and analyze every LLM request with detailed metadata, inputs, and outputs
+  </Card>
+  <Card title="Session Tracking" icon="layer-group" href="/observability/sessions">
+    Group related requests to understand multi-turn conversations and workflows
+  </Card>
+  <Card title="Distributed Tracing" icon="diagram-project" href="/observability/traces">
+    Visualize complex LLM workflows with parent-child request relationships
+  </Card>
+  <Card title="Custom Properties" icon="tags" href="/observability/custom-properties">
+    Add custom metadata to segment and filter your requests
+  </Card>
+  <Card title="User Metrics" icon="users" href="/observability/user-metrics">
+    Track costs, usage, and performance per user
+  </Card>
+  <Card title="Analytics Dashboard" icon="chart-line">
+    Visualize trends, costs, and performance over time
+  </Card>
+</CardGroup>
+
+## What You Can Observe
+
+### Request-Level Metrics
+
+- **Latency**: Time to first token, total request duration
+- **Costs**: Token usage and dollar costs per request
+- **Model Performance**: Completion quality, error rates
+- **Request/Response Data**: Full input prompts and completions
+- **Metadata**: Timestamps, model versions, provider info
+
+### Aggregate Metrics
+
+- **Total Costs**: Track spending across all requests
+- **Usage Patterns**: Requests per day, peak usage times
+- **Error Rates**: Failed requests, rate limits, timeouts
+- **User Analytics**: Cost and usage per user
+- **Session Analytics**: Multi-turn conversation metrics
+
+## Dashboard Features
+
+<Frame>
+  <img src="/images/dashboard.png" alt="Helicone Dashboard" />
+</Frame>
+
+### Real-Time Monitoring
+
+The Helicone dashboard provides:
+
+- **Live request feed** - See requests as they happen
+- **Cost tracking** - Real-time spend monitoring
+- **Performance charts** - Latency and throughput metrics
+- **Filtering and search** - Find specific requests instantly
+- **Custom time ranges** - Analyze any time period
+
+### Analytics Views
+
+Different views for different insights:
+
+- **Requests View** - Detailed log of all LLM calls
+- **Sessions View** - Grouped conversation flows
+- **Users View** - Per-user cost and usage analytics
+- **Models View** - Compare performance across models
+- **Properties View** - Segment by custom metadata
+
+## Getting Started
+
+<Steps>
+  <Step title="Integrate Helicone">
+    Add Helicone headers to your LLM requests or use our proxy
+  </Step>
+  <Step title="View Requests">
+    See all logged requests in your dashboard at [helicone.ai/requests](https://helicone.ai/requests)
+  </Step>
+  <Step title="Add Metadata">
+    Enrich requests with [custom properties](/observability/custom-properties) and [user IDs](/observability/user-metrics)
+  </Step>
+  <Step title="Analyze Patterns">
+    Use filters, sessions, and traces to understand your application
+  </Step>
+</Steps>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Production Monitoring">
+    Track performance and costs in production. Set up alerts for errors, high costs, or latency spikes.
+  </Accordion>
+  <Accordion title="Debugging">
+    Inspect failed requests, compare inputs/outputs, and trace complex workflows to identify issues.
+  </Accordion>
+  <Accordion title="Cost Optimization">
+    Identify expensive operations, compare model costs, and track spend per user or feature.
+  </Accordion>
+  <Accordion title="Product Analytics">
+    Understand how users interact with your AI features. Track engagement, popular flows, and drop-off points.
+  </Accordion>
+  <Accordion title="Compliance & Auditing">
+    Maintain complete logs of all LLM interactions for compliance and security auditing.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Log Your First Request" icon="rocket" href="/observability/requests">
+    Start capturing LLM requests
+  </Card>
+  <Card title="Track Sessions" icon="layer-group" href="/observability/sessions">
+    Group related requests together
+  </Card>
+  <Card title="Add Custom Properties" icon="tags" href="/observability/custom-properties">
+    Enrich requests with metadata
+  </Card>
+  <Card title="Monitor Users" icon="users" href="/observability/user-metrics">
+    Track per-user analytics
+  </Card>
+</CardGroup>

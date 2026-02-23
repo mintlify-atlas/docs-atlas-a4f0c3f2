@@ -1,0 +1,416 @@
+---
+title: "Evaluations"
+sidebarTitle: "Evaluations"
+description: "Evaluate and score LLM outputs to monitor quality, track performance, and improve your applications"
+---
+
+Helicone Evaluations let you automatically assess LLM responses for quality, accuracy, and alignment with your application's goals. Build custom evaluators, use LLMs as judges, or integrate external evaluation services to continuously monitor and improve your AI systems.
+
+## Why Use Evaluations
+
+<CardGroup cols={2}>
+<Card title="Quality Monitoring" icon="chart-line">
+  Track response quality metrics over time to catch degradations early
+</Card>
+<Card title="A/B Testing" icon="flask">
+  Compare different models, prompts, or parameters to optimize performance
+</Card>
+<Card title="Compliance" icon="shield-check">
+  Ensure outputs meet safety, policy, and regulatory requirements
+</Card>
+<Card title="Continuous Improvement" icon="arrows-rotate">
+  Use evaluation scores to build better training datasets and refine prompts
+</Card>
+</CardGroup>
+
+## Evaluation Methods
+
+Helicone supports multiple approaches to evaluate your LLM outputs:
+
+### LLM as a Judge
+
+Use another LLM to evaluate response quality:
+
+<Steps>
+<Step title="Define evaluation criteria">
+  Create a prompt that describes what makes a good response
+  
+  ```typescript
+  const judgePrompt = `
+  Evaluate this LLM response on a scale of 1-10 for:
+  - Accuracy: Does it answer the question correctly?
+  - Helpfulness: Is it useful to the user?
+  - Safety: Does it avoid harmful content?
+  
+  User Question: {question}
+  LLM Response: {response}
+  
+  Provide scores in JSON format.
+  `;
+  ```
+</Step>
+
+<Step title="Set up evaluation webhook">
+  Configure a webhook to receive completed requests and trigger evaluation
+  
+  ```typescript
+  // Webhook handler
+  export default async function handler(req, res) {
+    const { request_id, request_response_url } = req.body;
+    
+    // Fetch full request/response data
+    const data = await fetch(request_response_url).then(r => r.json());
+    
+    // Run LLM judge
+    const evaluation = await evaluateLLM({
+      question: data.request.messages[0].content,
+      response: data.response.choices[0].message.content
+    });
+    
+    // Store scores back to Helicone
+    await storeScore(request_id, evaluation);
+  }
+  ```
+</Step>
+
+<Step title="View evaluation results">
+  Monitor scores in the Helicone dashboard to track quality trends
+</Step>
+</Steps>
+
+### Custom Evaluators
+
+Deploy your own evaluation logic using any infrastructure:
+
+```typescript
+// Custom evaluator using your business logic
+async function evaluateResponse(request, response) {
+  const scores = {
+    // Check response length
+    conciseness: response.length < 500 ? 10 : 5,
+    
+    // Verify required fields
+    completeness: hasRequiredFields(response) ? 10 : 0,
+    
+    // Check against knowledge base
+    accuracy: await verifyAgainstKB(request, response),
+    
+    // Compliance check
+    safety: await scanForPII(response)
+  };
+  
+  return scores;
+}
+```
+
+### External Services
+
+Integrate third-party evaluation platforms:
+
+```typescript
+// Example: Using an external evaluation service
+import { EvaluationService } from '@evaluation-platform/sdk';
+
+const evaluator = new EvaluationService({
+  apiKey: process.env.EVAL_API_KEY
+});
+
+const result = await evaluator.evaluate({
+  input: userPrompt,
+  output: llmResponse,
+  criteria: ['accuracy', 'safety', 'relevance']
+});
+
+// Send scores to Helicone
+await helicone.logScore(requestId, result.scores);
+```
+
+## Scoring Mechanisms
+
+### Score Types
+
+Helicone supports various scoring approaches:
+
+<Tabs>
+<Tab title="Numeric Scores">
+  Rate responses on a numerical scale:
+  
+  ```typescript
+  {
+    "accuracy": 8.5,      // 0-10 scale
+    "helpfulness": 9.0,
+    "safety": 10.0,
+    "overall": 9.2
+  }
+  ```
+</Tab>
+
+<Tab title="Boolean Checks">
+  Binary pass/fail criteria:
+  
+  ```typescript
+  {
+    "has_pii": false,
+    "is_harmful": false,
+    "follows_guidelines": true,
+    "includes_sources": true
+  }
+  ```
+</Tab>
+
+<Tab title="Categorical">
+  Classify responses into categories:
+  
+  ```typescript
+  {
+    "sentiment": "positive",
+    "intent": "question",
+    "topic": "technical_support",
+    "quality_tier": "excellent"
+  }
+  ```
+</Tab>
+</Tabs>
+
+### Storing Scores
+
+Send evaluation scores to Helicone via the API:
+
+```typescript
+import { getJawnClient } from '@helicone/jawn';
+
+const jawn = getJawnClient(organizationId);
+
+// Store numeric scores
+await jawn.POST('/v1/request/{requestId}/score', {
+  params: {
+    path: { requestId }
+  },
+  body: {
+    scores: {
+      accuracy: 8.5,
+      helpfulness: 9.0,
+      safety: 10.0
+    }
+  }
+});
+```
+
+## Setting Up Evaluations
+
+### Using Webhooks
+
+The most common pattern for automated evaluation:
+
+<Steps>
+<Step title="Create webhook endpoint">
+  Set up an endpoint to receive completed requests:
+  
+  ```typescript
+  // api/evaluate.ts
+  export default async function handler(req, res) {
+    const { request_id, request_response_url, model } = req.body;
+    
+    // Verify webhook signature
+    if (!verifySignature(req)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    // Fetch full data
+    const response = await fetch(request_response_url);
+    const { request, response: llmResponse } = await response.json();
+    
+    // Run evaluation
+    const scores = await evaluateResponse(request, llmResponse);
+    
+    // Store scores
+    await storeScores(request_id, scores);
+    
+    res.status(200).json({ success: true });
+  }
+  ```
+</Step>
+
+<Step title="Configure webhook in Helicone">
+  Navigate to Settings → Webhooks and add your endpoint URL
+  
+  <Frame>
+    <img 
+      src="/images/webhooks/webhook-name.webp" 
+      alt="Adding webhook endpoint for evaluations"
+    />
+  </Frame>
+</Step>
+
+<Step title="Filter by properties (optional)">
+  Only evaluate specific requests using property filters:
+  
+  ```typescript
+  // Only evaluate production requests
+  headers: {
+    "Helicone-Property-Environment": "production"
+  }
+  ```
+</Step>
+</Steps>
+
+### Using Scoring Workers
+
+Deploy dedicated workers for evaluation:
+
+```typescript
+// scoring-worker/index.ts
+import { EventEmitter } from 'events';
+
+const evaluator = new EventEmitter();
+
+evaluator.on('request-completed', async (event) => {
+  const { requestId, data } = event;
+  
+  // Run multiple evaluations in parallel
+  const [qualityScore, safetyScore, complianceScore] = await Promise.all([
+    evaluateQuality(data),
+    evaluateSafety(data),
+    evaluateCompliance(data)
+  ]);
+  
+  // Aggregate and store
+  await storeScores(requestId, {
+    quality: qualityScore,
+    safety: safetyScore,
+    compliance: complianceScore,
+    overall: (qualityScore + safetyScore + complianceScore) / 3
+  });
+});
+```
+
+## Analytics and Monitoring
+
+### Score Dashboard
+
+Track evaluation metrics over time in the Helicone dashboard:
+
+- **Score trends** - Monitor how quality changes over time
+- **Score distribution** - See the spread of scores across requests
+- **Model comparison** - Compare scores between different models
+- **Filter by properties** - Analyze scores by environment, user, or feature
+
+### Alerting on Scores
+
+Combine evaluations with alerts to catch quality issues:
+
+```typescript
+// Set up alert for low quality scores
+await jawn.POST('/v1/alert', {
+  body: {
+    name: 'Low Quality Responses',
+    metric: 'score',
+    score_key: 'quality',
+    threshold: 7.0,
+    aggregation: 'average',
+    time_window: '3600',  // 1 hour
+    emails: ['team@company.com']
+  }
+});
+```
+
+### Experiment Tracking
+
+Use scores to compare experiments:
+
+<Frame caption="Compare evaluation scores across different prompt versions">
+  <img 
+    src="/images/experiments/scores-comparison.webp" 
+    alt="Side-by-side comparison of evaluation scores for different experiments"
+  />
+</Frame>
+
+```typescript
+// Tag requests with experiment ID
+headers: {
+  "Helicone-Property-Experiment": "prompt-v2"
+}
+
+// Filter by experiment to compare scores
+// View in dashboard or query via API
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+<Card title="Multiple Evaluators" icon="users">
+  Use diverse evaluation methods to catch different types of issues
+</Card>
+
+<Card title="Sampling Strategy" icon="filter">
+  Evaluate a representative sample rather than every request to reduce costs
+</Card>
+
+<Card title="Human-in-the-Loop" icon="user-check">
+  Combine automated scores with periodic human review for calibration
+</Card>
+
+<Card title="Version Control" icon="code-branch">
+  Track evaluator versions to understand score changes over time
+</Card>
+</CardGroup>
+
+## Common Evaluation Patterns
+
+### Quality Metrics
+
+```typescript
+const qualityMetrics = {
+  accuracy: 'Is the response factually correct?',
+  relevance: 'Does it answer the question asked?',
+  completeness: 'Does it fully address all aspects?',
+  coherence: 'Is it well-structured and logical?',
+  conciseness: 'Is it appropriately detailed without being verbose?'
+};
+```
+
+### Safety Checks
+
+```typescript
+const safetyChecks = {
+  pii_detection: 'Contains personal information?',
+  harmful_content: 'Includes harmful or offensive content?',
+  policy_compliance: 'Follows company guidelines?',
+  legal_risk: 'Contains legally problematic statements?'
+};
+```
+
+### Performance Metrics
+
+```typescript
+const performanceMetrics = {
+  response_time: 'How long did the request take?',
+  token_efficiency: 'Tokens used vs. value delivered',
+  cost_effectiveness: 'Cost relative to quality score',
+  cache_hit_rate: 'Percentage of cached responses'
+};
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+<Card title="Webhooks" icon="link" href="/features/webhooks">
+  Trigger evaluations automatically when requests complete
+</Card>
+
+<Card title="Datasets" icon="database" href="/features/datasets">
+  Build evaluation datasets from scored production data
+</Card>
+
+<Card title="Experiments" icon="flask" href="/features/experiments">
+  Compare evaluation scores across different configurations
+</Card>
+
+<Card title="Alerts" icon="bell" href="/features/alerts">
+  Get notified when evaluation scores drop below thresholds
+</Card>
+</CardGroup>
+
+---
+
+Evaluations help you maintain and improve LLM quality over time. Start with simple scoring metrics, then expand to more sophisticated evaluation methods as your application matures.

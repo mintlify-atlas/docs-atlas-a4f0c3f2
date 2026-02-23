@@ -1,0 +1,119 @@
+---
+title: 'Session Metrics'
+description: 'Get aggregated metrics for sessions'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" default="POST">
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  `/v1/session/metrics/query`
+</ParamField>
+
+## Authentication
+
+This endpoint requires API key authentication. Include your API key in the request headers:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body
+
+<ParamField body="nameContains" type="string" required>
+  Filter sessions by name substring
+</ParamField>
+
+<ParamField body="timezoneDifference" type="number" required>
+  Timezone offset in minutes
+</ParamField>
+
+<ParamField body="pSize" type="string">
+  Percentile size for metrics calculation. Options: "p50", "p75", "p95", "p99", "p99.9"
+</ParamField>
+
+<ParamField body="useInterquartile" type="boolean">
+  Whether to use interquartile range for outlier detection
+</ParamField>
+
+<ParamField body="timeFilter" type="object">
+  Time range filter
+  <ParamField body="startTimeUnixMs" type="number">
+    Start time in Unix milliseconds
+  </ParamField>
+  <ParamField body="endTimeUnixMs" type="number">
+    End time in Unix milliseconds
+  </ParamField>
+</ParamField>
+
+<ParamField body="filter" type="object">
+  Advanced filter for sessions
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  Session metrics data
+  <ResponseField name="averageCost" type="number">
+    Average cost per session
+  </ResponseField>
+  <ResponseField name="averageTokens" type="number">
+    Average tokens per session
+  </ResponseField>
+  <ResponseField name="averageRequests" type="number">
+    Average number of requests per session
+  </ResponseField>
+  <ResponseField name="totalSessions" type="number">
+    Total number of sessions
+  </ResponseField>
+  <ResponseField name="totalCost" type="number">
+    Sum of all session costs
+  </ResponseField>
+  <ResponseField name="totalTokens" type="number">
+    Sum of all tokens used
+  </ResponseField>
+  <ResponseField name="totalRequests" type="number">
+    Sum of all requests
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the request failed, null otherwise
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.helicone.ai/v1/session/metrics/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nameContains": "",
+    "timezoneDifference": 0,
+    "pSize": "p95",
+    "timeFilter": {
+      "startTimeUnixMs": 1704067200000,
+      "endTimeUnixMs": 1706745600000
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "data": {
+    "averageCost": 0.0042,
+    "averageTokens": 1450,
+    "averageRequests": 4.5,
+    "totalSessions": 150,
+    "totalCost": 0.63,
+    "totalTokens": 217500,
+    "totalRequests": 675
+  },
+  "error": null
+}
+```

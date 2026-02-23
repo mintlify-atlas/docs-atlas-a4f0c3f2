@@ -1,0 +1,423 @@
+---
+title: "Session Tracking"
+description: "Group related LLM requests to track multi-turn conversations and user workflows"
+---
+
+## What are Sessions?
+
+Sessions allow you to group related LLM requests together to understand multi-turn conversations, user workflows, and sequential operations. Track the entire journey of a user interaction across multiple API calls.
+
+## Why Use Sessions?
+
+<CardGroup cols={2}>
+  <Card title="Conversation Tracking" icon="comments">
+    Group chat messages to analyze full conversations
+  </Card>
+  <Card title="Workflow Monitoring" icon="diagram-project">
+    Track multi-step AI workflows from start to finish
+  </Card>
+  <Card title="User Journeys" icon="route">
+    Understand how users navigate through your AI features
+  </Card>
+  <Card title="Cost Analysis" icon="dollar-sign">
+    Calculate total costs for entire sessions
+  </Card>
+</CardGroup>
+
+## Session Headers
+
+Add session headers to your requests to group them:
+
+### Required Headers
+
+<ParamField header="Helicone-Session-Id" type="string" required>
+  Unique identifier for the session. Use the same ID for all requests in a session.
+</ParamField>
+
+### Optional Headers
+
+<ParamField header="Helicone-Session-Name" type="string">
+  Human-readable name for the session (e.g., "Customer Support Chat", "Travel Planner")
+</ParamField>
+
+<ParamField header="Helicone-Session-Path" type="string">
+  Path or step within the session (e.g., "/booking/flight/search", "/chat/message/3")
+</ParamField>
+
+## Basic Example
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+import uuid
+
+client = OpenAI(
+    api_key="YOUR_OPENAI_KEY",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": "Bearer YOUR_HELICONE_KEY"
+    }
+)
+
+# Generate session ID (same for all requests in this conversation)
+session_id = str(uuid.uuid4())
+
+# First message
+response1 = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+    extra_headers={
+        "Helicone-Session-Id": session_id,
+        "Helicone-Session-Name": "Weather Assistant",
+        "Helicone-Session-Path": "/weather/query"
+    }
+)
+
+# Second message (same session)
+response2 = client.chat.completions.create(
+    model="gpt-4",
+    messages=[
+        {"role": "user", "content": "What's the weather in Paris?"},
+        {"role": "assistant", "content": response1.choices[0].message.content},
+        {"role": "user", "content": "What about tomorrow?"}
+    ],
+    extra_headers={
+        "Helicone-Session-Id": session_id,
+        "Helicone-Session-Name": "Weather Assistant",
+        "Helicone-Session-Path": "/weather/followup"
+    }
+)
+```
+
+```typescript TypeScript
+import OpenAI from 'openai';
+import { randomUUID } from 'crypto';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://oai.helicone.ai/v1',
+  defaultHeaders: {
+    'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`
+  }
+});
+
+const sessionId = randomUUID();
+
+// First message
+const response1 = await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: "What's the weather in Paris?" }]
+  },
+  {
+    headers: {
+      'Helicone-Session-Id': sessionId,
+      'Helicone-Session-Name': 'Weather Assistant',
+      'Helicone-Session-Path': '/weather/query'
+    }
+  }
+);
+
+// Second message (same session)
+const response2 = await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [
+      { role: 'user', content: "What's the weather in Paris?" },
+      { role: 'assistant', content: response1.choices[0].message.content },
+      { role: 'user', content: 'What about tomorrow?' }
+    ]
+  },
+  {
+    headers: {
+      'Helicone-Session-Id': sessionId,
+      'Helicone-Session-Name': 'Weather Assistant',
+      'Helicone-Session-Path': '/weather/followup'
+    }
+  }
+);
+```
+
+```bash cURL
+curl https://oai.helicone.ai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_OPENAI_KEY" \
+  -H "Helicone-Auth: Bearer YOUR_HELICONE_KEY" \
+  -H "Helicone-Session-Id: 123e4567-e89b-12d3-a456-426614174000" \
+  -H "Helicone-Session-Name: Weather Assistant" \
+  -H "Helicone-Session-Path: /weather/query" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "What is the weather in Paris?"}]
+  }'
+```
+
+</CodeGroup>
+
+## Multi-Step Workflow Example
+
+Track complex workflows across multiple steps:
+
+```typescript
+const sessionId = randomUUID();
+const sessionName = "Travel Planner";
+
+// Step 1: Search flights
+await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Find flights to Tokyo' }]
+  },
+  {
+    headers: {
+      'Helicone-Session-Id': sessionId,
+      'Helicone-Session-Name': sessionName,
+      'Helicone-Session-Path': '/booking/flight/search'
+    }
+  }
+);
+
+// Step 2: Select flight
+await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Book the 2pm flight' }]
+  },
+  {
+    headers: {
+      'Helicone-Session-Id': sessionId,
+      'Helicone-Session-Name': sessionName,
+      'Helicone-Session-Path': '/booking/flight/selection'
+    }
+  }
+);
+
+// Step 3: Confirm booking
+await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Confirm the booking' }]
+  },
+  {
+    headers: {
+      'Helicone-Session-Id': sessionId,
+      'Helicone-Session-Name': sessionName,
+      'Helicone-Session-Path': '/booking/flight/confirm'
+    }
+  }
+);
+```
+
+## Viewing Sessions
+
+Access your sessions in the dashboard:
+
+<Steps>
+  <Step title="Navigate to Sessions">
+    Go to the Sessions page in your Helicone dashboard
+  </Step>
+  <Step title="View Session List">
+    See all sessions with metrics: total cost, request count, duration, success rate
+  </Step>
+  <Step title="Click a Session">
+    View all requests in the session, organized by path/timestamp
+  </Step>
+  <Step title="Analyze Patterns">
+    Identify common flows, drop-off points, and expensive operations
+  </Step>
+</Steps>
+
+## Session Analytics
+
+Helicone provides rich analytics for sessions:
+
+### Aggregate Metrics
+
+- **Total Cost**: Sum of all request costs in the session
+- **Request Count**: Number of requests in the session
+- **Duration**: Time from first to last request
+- **Average Latency**: Mean latency across all requests
+- **Success Rate**: Percentage of successful requests
+
+### Per-Session Metrics
+
+```typescript
+// Query session metrics via API
+const response = await fetch('https://api.helicone.ai/v1/session/metrics/query', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    nameContains: "Travel Planner",
+    timezoneDifference: 0,
+    timeFilter: {
+      startTimeUnixMs: Date.now() - 7 * 24 * 60 * 60 * 1000,
+      endTimeUnixMs: Date.now()
+    }
+  })
+});
+
+const data = await response.json();
+// Returns: total cost, count, avg latency, etc.
+```
+
+## Session API
+
+<CardGroup cols={2}>
+  <Card title="Query Sessions" icon="magnifying-glass" href="/api/sessions/query">
+    Fetch sessions with filters and metrics
+  </Card>
+  <Card title="Session Metrics" icon="chart-line" href="/api/sessions/metrics">
+    Get aggregate metrics for sessions
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Generate Unique Session IDs">
+    Use UUIDs or unique identifiers for session IDs. Don't reuse session IDs across different conversations.
+    
+    ```python
+    import uuid
+    session_id = str(uuid.uuid4())
+    ```
+  </Accordion>
+  
+  <Accordion title="Use Descriptive Session Names">
+    Give sessions meaningful names that describe the workflow or conversation type:
+    - Good: "Customer Support Chat", "Recipe Generator"
+    - Bad: "Session 1", "Test"
+  </Accordion>
+  
+  <Accordion title="Track Session Paths">
+    Use paths to track progress through multi-step workflows:
+    ```
+    /onboarding/step1
+    /onboarding/step2
+    /onboarding/step3
+    ```
+  </Accordion>
+  
+  <Accordion title="Combine with User IDs">
+    Track both session and user to understand per-user session patterns:
+    ```python
+    extra_headers={
+        "Helicone-Session-Id": session_id,
+        "Helicone-User-Id": user_id
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Session Duration">
+    Keep sessions focused on a single conversation or workflow. Start a new session for unrelated interactions.
+  </Accordion>
+</AccordionGroup>
+
+## Common Use Cases
+
+<Tabs>
+  <Tab title="Chatbots">
+    Track complete conversations from greeting to resolution:
+    
+    ```python
+    session_id = str(uuid.uuid4())
+    conversation = []
+    
+    for user_message in chat_history:
+        conversation.append({"role": "user", "content": user_message})
+        
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=conversation,
+            extra_headers={
+                "Helicone-Session-Id": session_id,
+                "Helicone-Session-Name": "Customer Support",
+                "Helicone-Session-Path": f"/chat/message/{len(conversation)}"
+            }
+        )
+        
+        conversation.append({
+            "role": "assistant",
+            "content": response.choices[0].message.content
+        })
+    ```
+  </Tab>
+  
+  <Tab title="Multi-Step Agents">
+    Track agent workflows with multiple LLM calls:
+    
+    ```python
+    session_id = str(uuid.uuid4())
+    
+    # Step 1: Plan
+    plan = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": task}],
+        extra_headers={
+            "Helicone-Session-Id": session_id,
+            "Helicone-Session-Path": "/agent/plan"
+        }
+    )
+    
+    # Step 2: Execute
+    result = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": f"Execute: {plan}"}],
+        extra_headers={
+            "Helicone-Session-Id": session_id,
+            "Helicone-Session-Path": "/agent/execute"
+        }
+    )
+    
+    # Step 3: Reflect
+    reflection = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": f"Review: {result}"}],
+        extra_headers={
+            "Helicone-Session-Id": session_id,
+            "Helicone-Session-Path": "/agent/reflect"
+        }
+    )
+    ```
+  </Tab>
+  
+  <Tab title="User Onboarding">
+    Track users through onboarding flows:
+    
+    ```python
+    session_id = str(uuid.uuid4())
+    
+    # Welcome
+    welcome = generate_welcome(user, session_id, "/onboarding/welcome")
+    
+    # Collect preferences
+    prefs = collect_preferences(user, session_id, "/onboarding/preferences")
+    
+    # Generate recommendations
+    recs = generate_recommendations(user, session_id, "/onboarding/recommendations")
+    
+    # All tracked in the same session
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Distributed Tracing" icon="diagram-project" href="/observability/traces">
+    Track parent-child relationships between requests
+  </Card>
+  <Card title="Custom Properties" icon="tags" href="/observability/custom-properties">
+    Add metadata to sessions
+  </Card>
+  <Card title="User Metrics" icon="users" href="/observability/user-metrics">
+    Combine sessions with user tracking
+  </Card>
+  <Card title="Request Logging" icon="list" href="/observability/requests">
+    Learn about individual request logging
+  </Card>
+</CardGroup>

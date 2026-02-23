@@ -1,0 +1,182 @@
+---
+title: 'Create Evaluator'
+description: 'Create a new evaluator for scoring LLM responses'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" default="POST">
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  `/v1/evaluator/`
+</ParamField>
+
+## Authentication
+
+This endpoint requires API key authentication. Include your API key in the request headers:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  Name for the evaluator
+</ParamField>
+
+<ParamField body="scoring_type" type="string" required>
+  Type of scoring. Options:
+  - `LLM-BOOLEAN`: Binary true/false evaluation
+  - `LLM-CHOICE`: Multiple choice selection
+  - `LLM-RANGE`: Numeric range scoring
+  - `PYTHON`: Custom Python code evaluation
+  - `LASTMILE`: LastMile framework integration
+</ParamField>
+
+<ParamField body="llm_template" type="object">
+  LLM configuration (required for LLM-based scoring types)
+  <ParamField body="model" type="string">
+    Model to use for evaluation (e.g., "gpt-4")
+  </ParamField>
+  <ParamField body="prompt" type="string">
+    Evaluation prompt template
+  </ParamField>
+  <ParamField body="min" type="number">
+    Minimum score (for LLM-RANGE)
+  </ParamField>
+  <ParamField body="max" type="number">
+    Maximum score (for LLM-RANGE)
+  </ParamField>
+  <ParamField body="choices" type="array">
+    Available choices (for LLM-CHOICE)
+  </ParamField>
+</ParamField>
+
+<ParamField body="code_template" type="object">
+  Python code configuration (required for PYTHON scoring type)
+  <ParamField body="code" type="string">
+    Python code that evaluates the response
+  </ParamField>
+</ParamField>
+
+<ParamField body="last_mile_config" type="object">
+  LastMile configuration (required for LASTMILE scoring type)
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  Created evaluator details
+  <ResponseField name="id" type="string">
+    Unique identifier for the evaluator
+  </ResponseField>
+  <ResponseField name="name" type="string">
+    Evaluator name
+  </ResponseField>
+  <ResponseField name="scoring_type" type="string">
+    Type of scoring
+  </ResponseField>
+  <ResponseField name="llm_template" type="object">
+    LLM configuration
+  </ResponseField>
+  <ResponseField name="code_template" type="object">
+    Code configuration
+  </ResponseField>
+  <ResponseField name="last_mile_config" type="object">
+    LastMile configuration
+  </ResponseField>
+  <ResponseField name="organization_id" type="string">
+    Organization ID
+  </ResponseField>
+  <ResponseField name="created_at" type="string">
+    Creation timestamp
+  </ResponseField>
+  <ResponseField name="updated_at" type="string">
+    Last update timestamp
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the request failed, null otherwise
+</ResponseField>
+
+## Example Request - LLM Boolean Evaluator
+
+```bash
+curl -X POST https://api.helicone.ai/v1/evaluator/ \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Hallucination Detector",
+    "scoring_type": "LLM-BOOLEAN",
+    "llm_template": {
+      "model": "gpt-4",
+      "prompt": "Analyze if the response contains hallucinations or false information based on the context provided. Return true if hallucinations are detected, false otherwise."
+    }
+  }'
+```
+
+## Example Request - LLM Range Evaluator
+
+```bash
+curl -X POST https://api.helicone.ai/v1/evaluator/ \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Relevance Score",
+    "scoring_type": "LLM-RANGE",
+    "llm_template": {
+      "model": "gpt-4",
+      "prompt": "Rate how relevant this response is to the user question on a scale of 1-10, where 1 is completely irrelevant and 10 is perfectly relevant.",
+      "min": 1,
+      "max": 10
+    }
+  }'
+```
+
+## Example Request - Python Evaluator
+
+```bash
+curl -X POST https://api.helicone.ai/v1/evaluator/ \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Response Length Check",
+    "scoring_type": "PYTHON",
+    "code_template": {
+      "code": "def evaluate(input, output):\n    word_count = len(output.split())\n    return 1.0 if word_count >= 50 else 0.0"
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "data": {
+    "id": "eval_abc123",
+    "name": "Hallucination Detector",
+    "scoring_type": "LLM-BOOLEAN",
+    "llm_template": {
+      "model": "gpt-4",
+      "prompt": "Analyze if the response contains hallucinations..."
+    },
+    "code_template": null,
+    "last_mile_config": null,
+    "organization_id": "org_xyz789",
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:30:00Z"
+  },
+  "error": null
+}
+```
+
+## Notes
+
+- LLM evaluators use AI models to score responses automatically
+- Python evaluators give you full control with custom code
+- LastMile evaluators integrate with the LastMile evaluation framework
+- You can test evaluators before creating them using the `/v1/evaluator/llm/test` or `/v1/evaluator/python/test` endpoints

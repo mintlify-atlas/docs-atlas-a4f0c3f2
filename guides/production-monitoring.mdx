@@ -1,0 +1,619 @@
+---
+title: "Production Monitoring for LLM Applications"
+sidebarTitle: "Production Monitoring"
+description: "Comprehensive guide to monitoring LLM applications in production with Helicone"
+---
+
+Running LLM applications in production requires proactive monitoring to catch issues before they impact users. This guide shows you how to set up comprehensive production monitoring with Helicone.
+
+## The Challenge
+
+Production LLM applications face unique challenges:
+- **Unpredictable errors**: Provider outages, rate limits, and model changes
+- **Cost volatility**: Usage spikes from viral features or abuse
+- **Quality degradation**: Prompt drift, model updates, data issues
+- **Performance issues**: Latency spikes affecting user experience
+
+## Solution Overview
+
+Helicone provides a complete monitoring stack:
+
+<CardGroup cols={2}>
+<Card title="Real-time Alerts" icon="bell">
+  Get notified of errors, cost spikes, and latency issues
+</Card>
+<Card title="Request Observability" icon="eye">
+  View every request/response with full context
+</Card>
+<Card title="Usage Analytics" icon="chart-line">
+  Track costs, token usage, and model performance
+</Card>
+<Card title="User Tracking" icon="users">
+  Monitor per-user costs and identify abuse
+</Card>
+</CardGroup>
+
+## Implementation Guide
+
+### 1. Instrument Your Application
+
+Add monitoring headers to all production requests:
+
+<CodeGroup>
+```typescript Node.js
+import { OpenAI } from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+
+// Wrapper function with monitoring
+async function monitoredLLMCall(
+  userId: string,
+  feature: string,
+  messages: any[],
+  options: any = {}
+) {
+  const startTime = Date.now();
+  
+  try {
+    const response = await client.chat.completions.create(
+      {
+        model: options.model || "gpt-4o",
+        messages,
+        ...options,
+      },
+      {
+        headers: {
+          // Core monitoring headers
+          "Helicone-User-Id": userId,
+          "Helicone-Property-Feature": feature,
+          "Helicone-Property-Environment": "production",
+          
+          // Optional: Version tracking
+          "Helicone-Property-Version": process.env.APP_VERSION || "unknown",
+          
+          // Optional: Session tracking for multi-step workflows
+          ...(options.sessionId && {
+            "Helicone-Session-Id": options.sessionId,
+            "Helicone-Session-Name": feature,
+            "Helicone-Session-Path": options.sessionPath || "/",
+          }),
+        },
+      }
+    );
+    
+    // Log success metrics
+    const duration = Date.now() - startTime;
+    console.log(`LLM call succeeded: ${feature} (${duration}ms)`);
+    
+    return response;
+  } catch (error: any) {
+    // Log error with context
+    console.error('LLM call failed:', {
+      feature,
+      userId,
+      error: error.message,
+      status: error.status,
+    });
+    
+    throw error;
+  }
+}
+
+// Usage
+await monitoredLLMCall(
+  "user-123",
+  "chat",
+  [{ role: "user", content: "Hello!" }]
+);
+```
+
+```python Python
+from openai import OpenAI
+import os
+import time
+import logging
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={
+        "Helicone-Auth": f"Bearer {os.getenv('HELICONE_API_KEY')}",
+    }
+)
+
+logger = logging.getLogger(__name__)
+
+def monitored_llm_call(
+    user_id: str,
+    feature: str,
+    messages: list,
+    **options
+):
+    """Wrapper for LLM calls with monitoring."""
+    start_time = time.time()
+    
+    try:
+        # Prepare headers
+        headers = {
+            # Core monitoring headers
+            "Helicone-User-Id": user_id,
+            "Helicone-Property-Feature": feature,
+            "Helicone-Property-Environment": "production",
+            "Helicone-Property-Version": os.getenv("APP_VERSION", "unknown"),
+        }
+        
+        # Add session tracking if provided
+        if "session_id" in options:
+            headers.update({
+                "Helicone-Session-Id": options["session_id"],
+                "Helicone-Session-Name": feature,
+                "Helicone-Session-Path": options.get("session_path", "/"),
+            })
+        
+        response = client.chat.completions.create(
+            model=options.get("model", "gpt-4o"),
+            messages=messages,
+            extra_headers=headers
+        )
+        
+        # Log success
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"LLM call succeeded: {feature} ({duration:.0f}ms)")
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"LLM call failed: {feature}", extra={
+            "user_id": user_id,
+            "error": str(e),
+            "status": getattr(e, "status_code", None),
+        })
+        raise
+
+# Usage
+monitored_llm_call(
+    "user-123",
+    "chat",
+    [{"role": "user", "content": "Hello!"}]
+)
+```
+</CodeGroup>
+
+### 2. Set Up Critical Alerts
+
+Create alerts for production issues:
+
+<Steps>
+<Step title="Error Rate Alert">
+Navigate to **Settings → Alerts** and create:
+
+**Alert Configuration:**
+- **Name**: Production Error Rate
+- **Metric**: Error Rate
+- **Threshold**: > 5%
+- **Time Window**: 10 minutes
+- **Minimum Requests**: 10 (avoid false positives)
+
+**Filters:**
+- Property: `Environment = production`
+
+**Notifications:**
+- Slack: `#production-alerts`
+- Email: `oncall@company.com`
+
+<Note>
+This catches provider outages, rate limit issues, and breaking changes quickly.
+</Note>
+</Step>
+
+<Step title="Cost Spike Alert">
+**Alert Configuration:**
+- **Name**: Production Cost Spike
+- **Metric**: Cost
+- **Threshold**: > $100/day
+- **Time Window**: 1 day
+
+**Filters:**
+- Property: `Environment = production`
+
+**Notifications:**
+- Email: `finance@company.com`
+- Slack: `#cost-alerts`
+
+<Note>
+Prevents unexpected bills from usage spikes or abuse.
+</Note>
+</Step>
+
+<Step title="Latency Alert">
+**Alert Configuration:**
+- **Name**: High Latency
+- **Metric**: Latency
+- **Threshold**: P95 > 10000ms
+- **Time Window**: 30 minutes
+- **Minimum Requests**: 20
+
+**Filters:**
+- Property: `Environment = production`
+
+**Notifications:**
+- Slack: `#performance-alerts`
+
+<Note>
+Detects performance degradation affecting user experience.
+</Note>
+</Step>
+
+<Step title="Feature-Specific Alert">
+For critical features:
+
+**Alert Configuration:**
+- **Name**: Chat Feature Errors
+- **Metric**: Error Rate
+- **Threshold**: > 2%
+- **Time Window**: 5 minutes
+
+**Filters:**
+- Property: `Environment = production`
+- Property: `Feature = chat`
+
+<Note>
+More sensitive monitoring for revenue-critical features.
+</Note>
+</Step>
+</Steps>
+
+### 3. Configure User Monitoring
+
+Track per-user usage to identify abuse and understand behavior:
+
+```typescript
+// Track user metadata for segmentation
+await client.chat.completions.create(
+  { /* ... */ },
+  {
+    headers: {
+      "Helicone-User-Id": user.id,
+      
+      // Segment by user tier for different thresholds
+      "Helicone-Property-UserTier": user.tier, // free, pro, enterprise
+      
+      // Track signup date to understand cohort behavior
+      "Helicone-Property-SignupDate": user.signupDate,
+      
+      // Geographic segmentation
+      "Helicone-Property-Region": user.region,
+    },
+  }
+);
+```
+
+**Use Cases:**
+- Identify users exceeding quotas
+- Detect potential abuse patterns
+- Understand usage by tier/cohort
+- Calculate customer lifetime value
+
+### 4. Implement Session Tracking
+
+For multi-step workflows, track complete user journeys:
+
+```typescript
+import { randomUUID } from "crypto";
+
+// Start of user interaction
+const sessionId = randomUUID();
+
+// Step 1: Initial query
+await monitoredLLMCall(
+  userId,
+  "document-qa",
+  [{ role: "user", content: "Summarize this document" }],
+  {
+    sessionId,
+    sessionPath: "/summarize",
+  }
+);
+
+// Step 2: Follow-up
+await monitoredLLMCall(
+  userId,
+  "document-qa",
+  [{ role: "user", content: "Extract key points" }],
+  {
+    sessionId,
+    sessionPath: "/summarize/extract",
+  }
+);
+
+// View complete workflow in Helicone Sessions dashboard
+```
+
+**Benefits:**
+- See total cost per user interaction
+- Debug failures with full context
+- Identify expensive workflow patterns
+- Measure success rates for complete flows
+
+### 5. Set Up Cost Controls
+
+Implement rate limiting and quota management:
+
+```typescript
+interface UserQuota {
+  dailyLimit: number;
+  monthlyLimit: number;
+}
+
+const QUOTAS: Record<string, UserQuota> = {
+  free: { dailyLimit: 10, monthlyLimit: 100 },
+  pro: { dailyLimit: 500, monthlyLimit: 10000 },
+  enterprise: { dailyLimit: 10000, monthlyLimit: 1000000 },
+};
+
+async function checkQuota(userId: string, tier: string): Promise<void> {
+  // Query Helicone for user's usage
+  const response = await fetch(
+    "https://api.helicone.ai/v1/request/query-clickhouse",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.HELICONE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        filter: {
+          request_response_rmt: {
+            user_id: { equals: userId },
+            request_created_at: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            },
+          },
+        },
+      }),
+    }
+  );
+  
+  const data = await response.json();
+  const dailyRequests = data.data.length;
+  const quota = QUOTAS[tier];
+  
+  if (dailyRequests >= quota.dailyLimit) {
+    throw new Error(
+      `Daily limit of ${quota.dailyLimit} requests reached. ` +
+      `Upgrade or try again tomorrow.`
+    );
+  }
+}
+
+// Use before each LLM call
+await checkQuota(userId, userTier);
+await monitoredLLMCall(userId, feature, messages);
+```
+
+### 6. Enable Caching
+
+Reduce costs and latency for repetitive queries:
+
+```typescript
+// Enable caching for production requests
+const cacheableFeatures = ["faq", "help-docs", "translations"];
+
+const headers = cacheableFeatures.includes(feature)
+  ? {
+      "Helicone-Cache-Enabled": "true",
+      "Cache-Control": "max-age=3600", // 1 hour
+    }
+  : {};
+
+await client.chat.completions.create(
+  { /* ... */ },
+  { headers: { ...baseHeaders, ...headers } }
+);
+```
+
+**Monitor Cache Performance:**
+- Go to Dashboard → Cache Analytics
+- Track hit rate, savings, and performance
+- Adjust cache TTL based on update frequency
+
+## Monitoring Dashboard
+
+Key metrics to watch daily:
+
+### Overview Metrics
+```
+Today's Snapshot:
+├── Total Requests: 42,387
+├── Error Rate: 0.8% ✅
+├── Avg Latency: 1,247ms ✅
+├── Total Cost: $127.45
+└── Cache Hit Rate: 34%
+
+Alerts:
+✅ No active alerts
+```
+
+### Feature Breakdown
+```
+Top Features by Volume:
+1. chat: 28,432 requests (67%)
+2. document-qa: 8,234 requests (19%)
+3. search: 5,721 requests (14%)
+
+Top Features by Cost:
+1. document-qa: $78.23 (61%)
+2. chat: $38.12 (30%)
+3. search: $11.10 (9%)
+```
+
+### User Insights
+```
+Active Users: 1,247
+
+Top Users by Usage:
+1. user-789 (enterprise): 523 requests, $12.34
+2. user-456 (pro): 412 requests, $8.91
+3. user-123 (pro): 387 requests, $7.45
+
+Potential Abuse:
+⚠️ user-999 (free): 95 requests (near daily limit)
+```
+
+## Incident Response
+
+When an alert fires:
+
+<Steps>
+<Step title="Assess Severity">
+- Error rate alert = High severity (affects all users)
+- Cost alert = Medium severity (financial impact)
+- Latency alert = Medium severity (poor UX)
+- Feature-specific = Varies by feature criticality
+</Step>
+
+<Step title="Investigate in Helicone">
+1. Click alert notification link
+2. Review affected requests
+3. Look for patterns:
+   - Specific users affected?
+   - Single feature or widespread?
+   - Started at specific time?
+</Step>
+
+<Step title="Take Action">
+**For errors:**
+- Check provider status pages
+- Review recent deployments
+- Implement fallback/retry logic
+
+**For cost spikes:**
+- Identify top users/features
+- Implement temporary rate limits
+- Investigate for abuse
+
+**For latency:**
+- Check model selection
+- Review prompt sizes
+- Consider model switching
+</Step>
+
+<Step title="Document & Follow Up">
+- Add incident notes in monitoring system
+- Update runbooks
+- Create tickets for permanent fixes
+- Schedule post-mortem if needed
+</Step>
+</Steps>
+
+## Best Practices
+
+<Tip>
+**Start with broad alerts**: Begin with high thresholds and tighten based on actual patterns
+</Tip>
+
+<Tip>
+**Use separate environments**: Different alert thresholds for dev/staging/production
+</Tip>
+
+<Tip>
+**Monitor user behavior**: Track per-user costs and usage patterns
+</Tip>
+
+<Tip>
+**Regular reviews**: Weekly review of dashboards to identify trends
+</Tip>
+
+<Warning>
+**Avoid alert fatigue**: Set minimum request thresholds to prevent false positives during low traffic
+</Warning>
+
+## Advanced: Custom Dashboards
+
+Build custom monitoring using Helicone API:
+
+```typescript
+// Fetch daily production metrics
+async function getDailyMetrics() {
+  const response = await fetch(
+    "https://api.helicone.ai/v1/request/query-clickhouse",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${HELICONE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        filter: {
+          request_response_rmt: {
+            request_created_at: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            },
+            properties: {
+              Environment: { equals: "production" },
+            },
+          },
+        },
+      }),
+    }
+  );
+  
+  const data = await response.json();
+  
+  // Calculate metrics
+  const totalRequests = data.data.length;
+  const errors = data.data.filter(r => r.status >= 400).length;
+  const errorRate = (errors / totalRequests) * 100;
+  const totalCost = data.data.reduce((sum, r) => sum + (r.cost_usd || 0), 0);
+  const avgLatency = data.data.reduce((sum, r) => sum + r.latency, 0) / totalRequests;
+  
+  return {
+    totalRequests,
+    errorRate,
+    totalCost,
+    avgLatency,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// Send to your monitoring system (e.g., DataDog, Grafana)
+```
+
+## Monitoring Checklist
+
+- [ ] All production requests instrumented with monitoring headers
+- [ ] Error rate alert configured (less than 5%)
+- [ ] Cost alert configured (appropriate threshold)
+- [ ] Feature-specific alerts for critical features
+- [ ] User tracking enabled (Helicone-User-Id)
+- [ ] Session tracking for multi-step workflows
+- [ ] Caching enabled for repetitive queries
+- [ ] Rate limiting implemented
+- [ ] Daily dashboard review scheduled
+- [ ] Incident response playbook documented
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Alerts Documentation" icon="bell" href="/features/alerts">
+  Deep dive into alert configuration options
+</Card>
+
+<Card title="User Metrics" icon="users" href="/features/advanced-usage/user-metrics">
+  Track and analyze per-user behavior
+</Card>
+
+<Card title="Debugging Guide" icon="bug" href="/guides/debugging-llm-apps">
+  Learn how to investigate production issues
+</Card>
+
+<Card title="Cost Optimization" icon="dollar-sign" href="/guides/cost-tracking">
+  Reduce production costs
+</Card>
+</CardGroup>
